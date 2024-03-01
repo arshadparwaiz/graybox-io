@@ -1,0 +1,13 @@
+application:
+  actions: actions
+  runtimeManifest:
+    packages:
+      graybox:
+        license: Apache-2.0
+        actions:            
+          graybox-promote:
+            function: actions/graybox/promote.js
+            web: 'yes'
+            runtime: nodejs:16
+            inputs:
+              LOG_LEVEL: debug            

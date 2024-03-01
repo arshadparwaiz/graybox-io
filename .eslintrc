@@ -1,0 +1,57 @@
+{
+    "extends": [
+        "airbnb-base"
+    ],
+    "rules": {
+        "indent": ["error", 4, {"SwitchCase": 1}],
+        "no-param-reassign": ["error", { "props": false }],
+        "class-methods-use-this": "off",
+        "function-paren-newline": ["error", "consistent"],
+        "max-len": ["error", { "code": 200 }],
+        "operator-linebreak": ["error", "after"],
+        "node/no-unpublished-require": 0,
+        "semi": ["error", "always"],
+        "comma-dangle": ["error", "only-multiline"],
+        "space-before-function-paren": [
+            "error",
+            {
+                "anonymous": "never",
+                "named": "never",
+                "asyncArrow": "always"
+            }
+        ],
+        "no-undef": ["error"],
+        "no-use-before-define": "off" //temporary to eslint changes better visible in PR (without code reordering)
+    },
+    "overrides": [
+        {
+            "files": [
+              "*.test.js",
+              "jest.setup.js"
+            ],
+            "rules": {
+                "no-underscore-dangle": "off"
+            },
+            "globals": {
+                "fetchMock": true,
+                "mockLoggerInstance": true,
+                "AIOParams": true,
+                "ExternalData": true,
+                "StateMock": true,
+                "FilesMock": true,
+                "LastImsMock": true
+            }
+        }
+    ],
+    "env": {
+        "node": true,
+        "es6": true,
+        "jest": true
+    },
+    "parser": "@babel/eslint-parser",
+    "parserOptions": {
+        "allowImportExportEverywhere": true,
+        "sourceType": "module",
+        "requireConfigFile": false
+    }
+}
