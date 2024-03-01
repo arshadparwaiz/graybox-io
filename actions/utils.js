@@ -28,6 +28,11 @@ function strToArray(val) {
     return val;
 }
 
+function toUTCStr(dt) {
+    const ret = new Date(dt);
+    return Number.isNaN(ret.getTime()) ? dt : ret.toUTCString();
+}
+
 function isFilePathWithWildcard(filePath, pattern) {
     if (!filePath || !pattern) {
         return false;
@@ -48,5 +53,6 @@ function isFilePatternMatched(filePath, patterns) {
 module.exports = {
     getAioLogger,
     strToArray,
-    isFilePatternMatched
+    isFilePatternMatched,
+    toUTCStr
 };

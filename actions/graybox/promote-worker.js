@@ -15,14 +15,15 @@
 * from Adobe.
 ************************************************************************* */
 
-const { getAioLogger, isFilePatternMatched } = require('../utils');
+const { getAioLogger, isFilePatternMatched, toUTCStr } = require('../utils');
 const { isGrayboxParamsValid } = require('./utils');
 const appConfig = require('../appConfig');
 const { getConfig } = require('../config');
-const { getAuthorizedRequestOption, fetchWithRetry } = require('../sharepoint');
+const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable } = require('../sharepoint');
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
+const IS_GRAYBOX = true;
 
 async function main(params) {
     let responsePayload;
@@ -56,6 +57,14 @@ async function main(params) {
     const gbFiles = await findAllFiles(experienceName, appConfig);
     logger.info(`Files in graybox folder in ${experienceName}`);
     logger.info(JSON.stringify(gbFiles));
+
+    // Update project excel file with status (sample)
+    logger.info('Updating project excel file with status');
+    const curreDateTime = new Date();
+    const { projectExcelPath } = appConfig.getPayload();
+    const excelValues = [['Sample Excel Update', toUTCStr(curreDateTime), 'sukamat@adobe.com', '']];
+    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues, IS_GRAYBOX);
+    logger.info('Project excel file updated with promote status.');
 
     responsePayload = 'Graybox Promote Worker action completed.';
     return exitAction({
