@@ -18,7 +18,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 const openwhisk = require('openwhisk');
 const { getAioLogger } = require('../utils');
-const grayboxConfig = require('../appConfig');
+const appConfig = require('../appConfig');
 const { isGrayboxParamsValid } = require('./utils');
 
 async function main(params) {
@@ -36,7 +36,7 @@ async function main(params) {
             });
         }
 
-        grayboxConfig.setAppConfig(params);
+        appConfig.setAppConfig(params);
 
         return exitAction(ow.actions.invoke({
             name: 'graybox/promote-worker',
@@ -68,7 +68,7 @@ async function main(params) {
 }
 
 function exitAction(resp) {
-    grayboxConfig.removePayload();
+    appConfig.removePayload();
     return resp;
 }
 

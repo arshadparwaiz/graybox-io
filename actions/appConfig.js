@@ -121,6 +121,10 @@ class AppConfig {
         };
     }
 
+    getSpSite() {
+        return this.configMap.spSite;
+    }
+
     getPromoteIgnorePaths() {
         const pips = this.getPayload().promoteIgnorePaths;
         return [...pips, '/.milo', '/.helix', '/metadata.xlsx', '*/query-index.xlsx'];

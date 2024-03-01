@@ -4,6 +4,15 @@ application:
     packages:
       graybox:
         license: Apache-2.0
+        inputs:
+          spSite: $SP_SITE
+          spClientId: $SP_CLIENT_ID
+          spAuthority: $SP_AUTHORITY
+          clientId: $CLIENT_ID
+          tenantId: $TENANT_ID
+          certPassword: $CERT_PASSWORD
+          certKey: $CERT_KEY
+          certThumbprint: $CERT_THUMB_PRINT       
         actions:            
           promote:
             function: actions/graybox/promote.js

@@ -5,7 +5,9 @@
   "dependencies": {
     "@adobe/aio-lib-core-logging": "^2.0.0",
     "@adobe/aio-sdk": "^3.0.0",
-    "openwhisk": "^3.21.7"
+    "openwhisk": "^3.21.7",
+    "@azure/msal-node": "^1.17.2",
+    "node-fetch": "^2.6.0"
   },
   "devDependencies": {
     "@babel/core": "^7.21.3",
