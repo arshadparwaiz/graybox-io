@@ -5,7 +5,7 @@ application:
       graybox:
         license: Apache-2.0
         actions:            
-          graybox-promote:
+          promote:
             function: actions/graybox/promote.js
             web: 'yes'
             runtime: nodejs:16

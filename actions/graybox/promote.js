@@ -16,16 +16,58 @@
 ************************************************************************* */
 
 const { getAioLogger } = require('../utils');
+const grayboxConfig = require('../appConfig');
+const { isGrayboxParamsValid } = require('./utils');
 
 async function main(params) {
     const logger = getAioLogger();
-    logger.info('Base API');
-    return {
-        code: 200,
-        payload: {
-            message: 'Base API'
-        }
-    };
+    let responsePayload;
+    logger.info('Graybox Promote action invoked');
+    try {
+        // if (!isGrayboxParamsValid(params)) {
+        //     responsePayload = 'Required data is not available to proceed with Graybox Promote action.';
+        //     logger.error(responsePayload);
+        //     return exitAction({
+        //         code: 400,
+        //         payload: responsePayload
+        //     });
+        // }
+
+        grayboxConfig.setAppConfig(params);
+
+        const {
+            rootFolder, gbRootFolder, experienceName, spToken, adminPageUri, projectExcelPath, promoteIgnorePaths, driveId, draftsOnly
+        } = grayboxConfig.getPayload();
+        responsePayload = {
+            message: 'Graybox Promote action completed successfully',
+            rootFolder,
+            gbRootFolder,
+            experienceName,
+            spToken,
+            adminPageUri,
+            projectExcelPath,
+            promoteIgnorePaths,
+            driveId,
+            draftsOnly
+        };
+        return exitAction({
+            code: 200,
+            payload: responsePayload
+        });
+    } catch (err) {
+        logger.error('Unknown error occurred', err);
+        responsePayload = err;
+    }
+
+    return exitAction({
+        code: 500,
+        payload: responsePayload,
+    });
+}
+
+function exitAction(resp) {
+    grayboxConfig.removePayload();
+    return resp;
 }
 
 exports.main = main;

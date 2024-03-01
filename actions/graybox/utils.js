@@ -15,20 +15,25 @@
 * from Adobe.
 ************************************************************************* */
 
-const AioLogger = require('@adobe/aio-lib-core-logging');
+function isGrayboxParamsValid(params) {
+    const {
+        rootFolder,
+        gbRootFolder,
+        projectExcelPath,
+        experienceName,
+        spToken,
+        adminPageUri,
+        draftsOnly,
+        promoteIgnorePaths
+    } = params;
 
-function getAioLogger(loggerName = 'main', logLevel = 'info') {
-    return AioLogger(loggerName, { level: logLevel });
-}
+    const requiredParams = [rootFolder, gbRootFolder, projectExcelPath,
+        experienceName, spToken, adminPageUri, draftsOnly, promoteIgnorePaths];
 
-function strToArray(val) {
-    if (val && typeof val === 'string') {
-        return val.split(',').map((e) => e.trim()).filter((e) => e);
-    }
-    return val;
+    // Return true if all required parameters are present
+    return !requiredParams.some((param) => !param);
 }
 
 module.exports = {
-    getAioLogger,
-    strToArray
+    isGrayboxParamsValid
 };
