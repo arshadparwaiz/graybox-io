@@ -24,14 +24,14 @@ async function main(params) {
     let responsePayload;
     logger.info('Graybox Promote action invoked');
     try {
-        // if (!isGrayboxParamsValid(params)) {
-        //     responsePayload = 'Required data is not available to proceed with Graybox Promote action.';
-        //     logger.error(responsePayload);
-        //     return exitAction({
-        //         code: 400,
-        //         payload: responsePayload
-        //     });
-        // }
+        if (!isGrayboxParamsValid(params)) {
+            responsePayload = 'Required data is not available to proceed with Graybox Promote action.';
+            logger.error(responsePayload);
+            return exitAction({
+                code: 400,
+                payload: responsePayload
+            });
+        }
 
         grayboxConfig.setAppConfig(params);
 
