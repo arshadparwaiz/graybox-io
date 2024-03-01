@@ -15,12 +15,15 @@
 * from Adobe.
 ************************************************************************* */
 
+// eslint-disable-next-line import/no-extraneous-dependencies
+const openwhisk = require('openwhisk');
 const { getAioLogger } = require('../utils');
 const grayboxConfig = require('../appConfig');
 const { isGrayboxParamsValid } = require('./utils');
 
 async function main(params) {
     const logger = getAioLogger();
+    const ow = openwhisk();
     let responsePayload;
     logger.info('Graybox Promote action invoked');
     try {
@@ -35,25 +38,24 @@ async function main(params) {
 
         grayboxConfig.setAppConfig(params);
 
-        const {
-            rootFolder, gbRootFolder, experienceName, spToken, adminPageUri, projectExcelPath, promoteIgnorePaths, driveId, draftsOnly
-        } = grayboxConfig.getPayload();
-        responsePayload = {
-            message: 'Graybox Promote action completed successfully',
-            rootFolder,
-            gbRootFolder,
-            experienceName,
-            spToken,
-            adminPageUri,
-            projectExcelPath,
-            promoteIgnorePaths,
-            driveId,
-            draftsOnly
-        };
-        return exitAction({
-            code: 200,
-            payload: responsePayload
-        });
+        return exitAction(ow.actions.invoke({
+            name: 'graybox/promote-worker',
+            blocking: false,
+            result: false,
+            params
+        }).then(async (result) => {
+            logger.info(result);
+            return {
+                code: 200,
+                payload: responsePayload
+            };
+        }).catch(async (err) => {
+            logger.error('Failed to invoke graybox promote action', err);
+            return {
+                code: 500,
+                payload: responsePayload
+            };
+        }));
     } catch (err) {
         logger.error('Unknown error occurred', err);
         responsePayload = err;
