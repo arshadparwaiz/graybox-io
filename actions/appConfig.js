@@ -46,7 +46,7 @@ class AppConfig {
         payload.draftsOnly = params.draftsOnly;
         payload.experienceName = params.experienceName;
 
-        // These are from configs and not activation related
+        // These are from params set in the github configs
         this.configMap.spSite = params.spSite;
         this.configMap.spClientId = params.spClientId;
         this.configMap.spAuthority = params.spAuthority;
@@ -56,6 +56,8 @@ class AppConfig {
         this.configMap.certKey = params.certKey;
         this.configMap.certThumbprint = params.certThumbprint;
         this.configMap.helixAdminApiKeys = this.getJsonFromStr(params.helixAdminApiKeys);
+        this.configMap.groupCheckUrl = params.groupCheckUrl || 'https://graph.microsoft.com/v1.0/groups/{groupOid}/members?$count=true';
+        this.configMap.grayboxUserGroups = this.getJsonFromStr(params.grayboxUserGroups, []);
         this.extractPrivateKey();
 
         payload.ext = {
