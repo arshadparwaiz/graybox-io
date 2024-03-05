@@ -16,7 +16,6 @@
 ************************************************************************* */
 
 const { getAioLogger, isFilePatternMatched, toUTCStr } = require('../utils');
-const { isGrayboxParamsValid } = require('./utils');
 const appConfig = require('../appConfig');
 const { getConfig } = require('../config');
 const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable } = require('../sharepoint');
@@ -26,17 +25,7 @@ const MAX_CHILDREN = 1000;
 const IS_GRAYBOX = true;
 
 async function main(params) {
-    let responsePayload;
     logger.info('Graybox Promote Worker invoked');
-
-    if (!isGrayboxParamsValid(params)) {
-        responsePayload = 'Required data is not available to proceed with Graybox Promote action.';
-        logger.error(responsePayload);
-        return exitAction({
-            code: 400,
-            payload: responsePayload
-        });
-    }
 
     appConfig.setAppConfig(params);
     const { gbRootFolder, experienceName } = appConfig.getPayload();
@@ -66,7 +55,7 @@ async function main(params) {
     await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues, IS_GRAYBOX);
     logger.info('Project excel file updated with promote status.');
 
-    responsePayload = 'Graybox Promote Worker action completed.';
+    const responsePayload = 'Graybox Promote Worker action completed.';
     return exitAction({
         body: responsePayload,
     });
