@@ -18,8 +18,8 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 const openwhisk = require('openwhisk');
 const { getAioLogger } = require('../utils');
+const { validateAction } = require('./validateAction');
 const appConfig = require('../appConfig');
-const { isGrayboxParamsValid } = require('./utils');
 
 async function main(params) {
     const logger = getAioLogger();
@@ -27,16 +27,13 @@ async function main(params) {
     let responsePayload;
     logger.info('Graybox Promote action invoked');
     try {
-        if (!isGrayboxParamsValid(params)) {
-            responsePayload = 'Required data is not available to proceed with Graybox Promote action.';
-            logger.error(responsePayload);
-            return exitAction({
-                code: 400,
-                payload: responsePayload
-            });
-        }
-
         appConfig.setAppConfig(params);
+        const grpIds = appConfig.getConfig().grayboxUserGroups;
+        const vActData = await validateAction(params, grpIds);
+        if (vActData && vActData.code !== 200) {
+            logger.info(`Validation failed: ${JSON.stringify(vActData)}`);
+            return exitAction(vActData);
+        }
 
         return exitAction(ow.actions.invoke({
             name: 'graybox/promote-worker',
