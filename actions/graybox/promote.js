@@ -29,7 +29,7 @@ async function main(params) {
     try {
         appConfig.setAppConfig(params);
         const grpIds = appConfig.getConfig().grayboxUserGroups;
-        const vActData = await validateAction(params, grpIds);
+        const vActData = await validateAction(params, grpIds, appConfig.ignoreUserCheck());
         if (vActData && vActData.code !== 200) {
             logger.info(`Validation failed: ${JSON.stringify(vActData)}`);
             return exitAction(vActData);

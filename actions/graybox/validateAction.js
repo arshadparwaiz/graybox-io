@@ -43,18 +43,21 @@ async function isUserAuthorized(params, grpIds) {
     return found;
 }
 
-async function validateAction(params, grpIds) {
+async function validateAction(params, grpIds, ignoreUserCheck = false) {
     if (!isGrayboxParamsValid(params)) {
         return {
             code: 400,
             payload: 'Required data is not available to proceed with Graybox Promote action.'
         };
     }
-    if (!await isUserAuthorized(params, grpIds)) {
-        return {
-            code: 401,
-            payload: 'Additional permissions required to proceed with Graybox Promote action.'
-        };
+    if (!ignoreUserCheck) {
+        const isUserAuth = await isUserAuthorized(params, grpIds);
+        if (!isUserAuth) {
+            return {
+                code: 401,
+                payload: 'User is not authorized to perform this action.'
+            };
+        }
     }
     return {
         code: 200

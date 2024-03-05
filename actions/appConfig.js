@@ -58,6 +58,8 @@ class AppConfig {
         this.configMap.helixAdminApiKeys = this.getJsonFromStr(params.helixAdminApiKeys);
         this.configMap.groupCheckUrl = params.groupCheckUrl || 'https://graph.microsoft.com/v1.0/groups/{groupOid}/members?$count=true';
         this.configMap.grayboxUserGroups = this.getJsonFromStr(params.grayboxUserGroups, []);
+        this.configMap.ignoreUserCheck = (params.ignoreUserCheck || '').trim().toLowerCase() === 'true';
+
         this.extractPrivateKey();
 
         payload.ext = {
@@ -163,6 +165,10 @@ class AppConfig {
             return draftsOnly.trim().toLowerCase() !== 'false';
         }
         return draftsOnly;
+    }
+
+    ignoreUserCheck() {
+        return true && this.configMap.ignoreUserCheck;
     }
 }
 
