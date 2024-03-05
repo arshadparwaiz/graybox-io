@@ -11,9 +11,13 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        node-version: ['20']
+        node-version: ['16']
         os: [ubuntu-latest]
     steps:
+      - name: Check Repo Variables
+        run: |
+          echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
+          echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
@@ -27,20 +31,10 @@ jobs:
         with:
           os: ${{ matrix.os }}
           version: 10.x.x
-      - name: Auth
-        uses: adobe/aio-apps-action@3.3.0
-        with:
-          os: ${{ matrix.os }}
-          command: oauth_sts
-          CLIENTID: ${{ secrets.CLIENTID_STAGE }}
-          CLIENTSECRET: ${{ secrets.CLIENTSECRET_STAGE }}
-          TECHNICALACCOUNTID: ${{ secrets.TECHNICALACCID_STAGE }}
-          TECHNICALACCOUNTEMAIL: ${{ secrets.TECHNICALACCEMAIL_STAGE }}
-          IMSORGID: ${{ secrets.IMSORGID_STAGE }}
-          SCOPES: ${{ secrets.SCOPES_STAGE }}
       - name: Build
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
@@ -48,13 +42,7 @@ jobs:
       - name: Deploy
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
-          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
-          AIO_PROJECT_ID: ${{ secrets.AIO_PROJECT_ID_STAGE }}
-          AIO_PROJECT_NAME: ${{ secrets.AIO_PROJECT_NAME_STAGE }}
-          AIO_PROJECT_ORG_ID: ${{ secrets.AIO_PROJECT_ORG_ID_STAGE }}
-          AIO_PROJECT_WORKSPACE_ID: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_STAGE }}
-          AIO_PROJECT_WORKSPACE_NAME: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_STAGE }}
-          AIO_PROJECT_WORKSPACE_DETAILS_SERVICES: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_STAGE }}
+          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}          
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
