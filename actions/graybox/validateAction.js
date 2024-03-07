@@ -15,6 +15,8 @@
 * from Adobe.
 ************************************************************************* */
 
+const GrayboxUser = require('../grayboxUser');
+
 function isGrayboxParamsValid(params) {
     const {
         rootFolder,
@@ -34,6 +36,34 @@ function isGrayboxParamsValid(params) {
     return !requiredParams.some((param) => !param);
 }
 
+async function isUserAuthorized(params, grpIds) {
+    const { spToken } = params;
+    const grayboxUser = new GrayboxUser({ at: spToken });
+    const found = await grayboxUser.isInGroups(grpIds);
+    return found;
+}
+
+async function validateAction(params, grpIds, ignoreUserCheck = false) {
+    if (!isGrayboxParamsValid(params)) {
+        return {
+            code: 400,
+            payload: 'Required data is not available to proceed with Graybox Promote action.'
+        };
+    }
+    if (!ignoreUserCheck) {
+        const isUserAuth = await isUserAuthorized(params, grpIds);
+        if (!isUserAuth) {
+            return {
+                code: 401,
+                payload: 'User is not authorized to perform this action.'
+            };
+        }
+    }
+    return {
+        code: 200
+    };
+}
+
 module.exports = {
-    isGrayboxParamsValid
+    validateAction
 };

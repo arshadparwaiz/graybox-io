@@ -18,6 +18,9 @@ jobs:
         run: |
           echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
           echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
+        env:
+          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
       - name: Checkout
         uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
@@ -35,6 +38,8 @@ jobs:
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
+          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
