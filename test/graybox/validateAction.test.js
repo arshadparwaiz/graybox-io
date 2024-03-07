@@ -18,7 +18,7 @@
 const { validateAction } = require('../../actions/graybox/validateAction'); // Update the path accordingly
 const GrayboxUser = require('../../actions/grayboxUser');
 
-const validParams = {
+const mockValidParams = {
     rootFolder: '/app',
     gbRootFolder: '/app-graybox',
     projectExcelPath: '/path/to/excel.xlsx',
@@ -53,7 +53,7 @@ describe('validateAction', () => {
     });
 
     test('should return 401 if user is not authorized', async () => {
-        const params = validParams;
+        const params = mockValidParams;
         const grpIds = [];
         GrayboxUser.mockImplementation(() => {
             return {
@@ -65,7 +65,7 @@ describe('validateAction', () => {
     });
 
     test('should return 200 if user is authorized and all required params are present', async () => {
-        const params = validParams;
+        const params = mockValidParams;
         const grpIds = [];
         GrayboxUser.mockImplementation(() => {
             return {
@@ -77,7 +77,7 @@ describe('validateAction', () => {
     });
 
     test('should return 200 if ignoreUserCheck is true', async () => {
-        const params = validParams;
+        const params = mockValidParams;
         const grpIds = [];
         const result = await validateAction(params, grpIds, true);
         expect(result.code).toBe(200);
