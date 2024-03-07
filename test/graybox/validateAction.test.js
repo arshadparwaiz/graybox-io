@@ -7,7 +7,7 @@ const validParams = {
     projectExcelPath: '/path/to/excel.xlsx',
     experienceName: '/max',
     spToken: 'abcde',
-    adminPageUri: 'https://adobe.com',
+    adminPageUri: 'https://a.com/path?ref=branch&repo=app&owner=org',
     draftsOnly: true,
     promoteIgnorePaths: '/path1'
 };
