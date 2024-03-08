@@ -30,13 +30,9 @@ const mockValidParams = {
 };
 
 // Mock GrayboxUser class and its methods
-jest.mock('../../actions/grayboxUser', () => {
-    return jest.fn().mockImplementation(() => {
-        return {
-            isInGroups: jest.fn().mockResolvedValue(true)
-        };
-    });
-});
+jest.mock('../../actions/grayboxUser', () => jest.fn().mockImplementation(() => ({
+    isInGroups: jest.fn().mockResolvedValue(true)
+})));
 
 describe('validateAction', () => {
     beforeEach(() => {
@@ -55,11 +51,11 @@ describe('validateAction', () => {
     test('should return 401 if user is not authorized', async () => {
         const params = mockValidParams;
         const grpIds = [];
-        GrayboxUser.mockImplementation(() => {
-            return {
-                isInGroups: jest.fn().mockResolvedValue(false) // Mocking user not authorized
-            };
-        });
+
+        // Mocking user not authorized
+        GrayboxUser.mockImplementation(() => ({
+            isInGroups: jest.fn().mockResolvedValue(false)
+        }));
         const result = await validateAction(params, grpIds);
         expect(result.code).toBe(401);
     });
@@ -67,11 +63,11 @@ describe('validateAction', () => {
     test('should return 200 if user is authorized and all required params are present', async () => {
         const params = mockValidParams;
         const grpIds = [];
-        GrayboxUser.mockImplementation(() => {
-            return {
-                isInGroups: jest.fn().mockResolvedValue(true) // Mocking user not authorized
-            };
-        });
+
+        // Mocking user authorized
+        GrayboxUser.mockImplementation(() => ({
+            isInGroups: jest.fn().mockResolvedValue(true)
+        }));
         const result = await validateAction(params, grpIds);
         expect(result.code).toBe(200);
     });
