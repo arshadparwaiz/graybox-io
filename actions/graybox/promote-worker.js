@@ -62,16 +62,16 @@ async function main(params) {
     // process data in batches
     const previewStatuses = [];
 
-    if (helixUtils.canBulkPreviewPublish()) {
+    if (helixUtils.canBulkPreview()) {
         const paths = []; 
         
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
         });
         
-        previewStatuses.push(await helixUtils.bulkPreviewPublish(paths, helixUtils.getOperations().PREVIEW, { isFloodgate: false }, experienceName));
+        previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName));
 
-        logger.info(`previewStatuses >> ${JSON.stringify(previewStatuses)}`);
+        logger.info(`Preview Statuses >> ${JSON.stringify(previewStatuses)}`);
 
         const failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
     }

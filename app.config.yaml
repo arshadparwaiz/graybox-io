@@ -13,13 +13,12 @@ application:
           certPassword: $CERT_PASSWORD
           certKey: $CERT_KEY
           certThumbprint: $CERT_THUMB_PRINT
-          enablePreviewPublish: $ENABLE_PREVEW_PUBLISH
+          enablePreview: $ENABLE_PREVIEW
           groupCheckUrl: $GROUP_CHECK_URL
           grayboxUserGroups: $GRAYBOX_USER_GROUPS
           helixAdminApiKeys: $HELIX_ADMIN_API_KEYS
           bulkPreviewCheckInterval: $BULK_PREVIEW_CHECK_INTERVAL
           maxBulkPreviewChecks: $MAX_BULK_PREVIEW_CHECKS
-          skipInProgressCheck: $SKIP_INPROGRESS_CHECK
         actions:            
           promote:
             function: actions/graybox/promote.js
