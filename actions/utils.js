@@ -50,9 +50,48 @@ function isFilePatternMatched(filePath, patterns) {
     return isFilePathWithWildcard(filePath, patterns);
 }
 
+function logMemUsage() {
+    const logger = getAioLogger();
+const memStr = JSON.stringify(process.memoryUsage());
+logger.info(`Memory Usage : ${memStr}`);
+}
+
+async function delay(milliseconds = 100) {
+    // eslint-disable-next-line no-promise-executor-return
+    await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function handleExtension(path) {
+    const pidx = path.lastIndexOf('/');
+    const fld = path.substring(0, pidx + 1);
+    let fn = path.substring(pidx + 1);
+
+    if (fn.endsWith('.xlsx')) {
+        fn = fn.replace('.xlsx', '.json');
+    }
+    if (fn.toLowerCase() === 'index.docx') {
+        fn = '';
+    }
+    if (fn.endsWith('.docx')) {
+        fn = fn.substring(0, fn.lastIndexOf('.'));
+    }
+
+    fn = fn
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9.]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+    return `${fld}${fn}`;
+}
+
 module.exports = {
     getAioLogger,
     strToArray,
     isFilePatternMatched,
-    toUTCStr
+    toUTCStr,
+    logMemUsage,
+    delay,
+    handleExtension
 };

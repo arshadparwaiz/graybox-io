@@ -55,7 +55,11 @@ class AppConfig {
         this.configMap.certPassword = params.certPassword;
         this.configMap.certKey = params.certKey;
         this.configMap.certThumbprint = params.certThumbprint;
+        this.configMap.enablePreviewPublish = this.getJsonFromStr(params.enablePreviewPublish, []);
         this.configMap.helixAdminApiKeys = this.getJsonFromStr(params.helixAdminApiKeys);
+        this.configMap.bulkPreviewCheckInterval = parseInt(params.bulkPreviewCheckInterval || '30', 10);
+        this.configMap.maxBulkPreviewChecks = parseInt(params.maxBulkPreviewChecks || '30', 10);
+        this.configMap.enablePreviewPublish = this.getJsonFromStr(params.enablePreviewPublish, []);
         this.configMap.groupCheckUrl = params.groupCheckUrl || 'https://graph.microsoft.com/v1.0/groups/{groupOid}/members?$count=true';
         this.configMap.grayboxUserGroups = this.getJsonFromStr(params.grayboxUserGroups, []);
         this.configMap.ignoreUserCheck = (params.ignoreUserCheck || '').trim().toLowerCase() === 'true';

@@ -15,14 +15,18 @@
 * from Adobe.
 ************************************************************************* */
 
-const { getAioLogger, isFilePatternMatched, toUTCStr } = require('../utils');
+const { getAioLogger, handleExtension, logMemUsage, delay, isFilePatternMatched, toUTCStr } = require('../utils');
 const appConfig = require('../appConfig');
 const { getConfig } = require('../config');
-const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable } = require('../sharepoint');
+const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable, bulkCreateFolders } = require('../sharepoint');
+const helixUtils = require('../helixUtils');
+const sharepointAuth = require('../sharepointAuth');
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
 const IS_GRAYBOX = true;
+const BATCH_REQUEST_PREVIEW = 200;
+const DELAY_TIME_COPY = 3000;
 
 async function main(params) {
     logger.info('Graybox Promote Worker invoked');
@@ -46,6 +50,31 @@ async function main(params) {
     const gbFiles = await findAllFiles(experienceName, appConfig);
     logger.info(`Files in graybox folder in ${experienceName}`);
     logger.info(JSON.stringify(gbFiles));
+
+    
+    // create batches to process the data
+    const batchArray = [];
+    for (let i = 0; i < gbFiles.length; i += BATCH_REQUEST_PREVIEW) {
+        const arrayChunk = gbFiles.slice(i, i + BATCH_REQUEST_PREVIEW);
+        batchArray.push(arrayChunk);
+    }
+    
+    // process data in batches
+    const previewStatuses = [];
+
+    if (helixUtils.canBulkPreviewPublish()) {
+        const paths = []; 
+        
+        batchArray.forEach((batch) => {
+            batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
+        });
+        
+        previewStatuses.push(await helixUtils.bulkPreviewPublish(paths, helixUtils.getOperations().PREVIEW, { isFloodgate: false }, experienceName));
+
+        logger.info(`previewStatuses >> ${JSON.stringify(previewStatuses)}`);
+
+        const failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
+    }
 
     // Update project excel file with status (sample)
     logger.info('Updating project excel file with status');
