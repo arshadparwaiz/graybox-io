@@ -24,8 +24,8 @@ const appConfig = require('../appConfig');
 async function main(params) {
     const logger = getAioLogger();
     const ow = openwhisk();
-    let responsePayload;
-    logger.info('Graybox Promote action invoked');
+    let responsePayload = 'Graybox Promote action invoked';
+    logger.info(responsePayload);
     try {
         appConfig.setAppConfig(params);
         const grpIds = appConfig.getConfig().grayboxUserGroups;
@@ -47,14 +47,16 @@ async function main(params) {
                 payload: responsePayload
             };
         }).catch(async (err) => {
-            logger.error('Failed to invoke graybox promote action', err);
+            responsePayload = 'Failed to invoke graybox promote action';
+            logger.error(`${responsePayload}: ${err}`);
             return {
                 code: 500,
                 payload: responsePayload
             };
         }));
     } catch (err) {
-        logger.error('Unknown error occurred', err);
+        responsePayload = 'Unknown error occurred';
+        logger.error(`${responsePayload}: ${err}`);
         responsePayload = err;
     }
 
