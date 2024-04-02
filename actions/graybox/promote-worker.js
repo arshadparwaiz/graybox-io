@@ -61,26 +61,27 @@ async function main(params) {
     
     // process data in batches
     const previewStatuses = [];
-
+    let failedPreviews = '';
     if (helixUtils.canBulkPreview()) {
-        const paths = []; 
-        
+        const paths = [];
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
         });
         
-        previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName));
+        const previewStatuses = await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName);
 
-        logger.info(`Preview Statuses >> ${JSON.stringify(previewStatuses)}`);
+        failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
+        const promoteErrors = failedPreviews.length > 0;
 
-        const failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
+        logger.info(`Failed Previews: ${JSON.stringify(failedPreviews)}`);
     }
 
     // Update project excel file with status (sample)
     logger.info('Updating project excel file with status');
     const curreDateTime = new Date();
     const { projectExcelPath } = appConfig.getPayload();
-    const excelValues = [['Sample Excel Update', toUTCStr(curreDateTime), 'sukamat@adobe.com', '']];
+    const sFailedPreviews = failedPreviews.length > 0 ? 'Failed Previews: \n' + failedPreviews.join('\n') : '';
+    const excelValues = [['Preview', toUTCStr(curreDateTime), sFailedPreviews]];
     await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues, IS_GRAYBOX);
     logger.info('Project excel file updated with promote status.');
 

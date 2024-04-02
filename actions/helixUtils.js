@@ -66,9 +66,9 @@ class HelixUtils {
      * @returns List of path with preview/pubish status e.g. [{path:'/draft/file1', success: true}..]
      */
     async bulkPreview(paths, operation, grayboxExperienceName, retryAttempt = 1) {
-        let prevPubStatuses = paths.filter((p) => p).map((path) => ({ success: false, path, resourcePath: '' }));
-        if (!prevPubStatuses.length) {
-            return prevPubStatuses;
+        let prevStatuses = paths.filter((p) => p).map((path) => ({ success: false, path, resourcePath: '', responseCode: '' }));
+        if (!prevStatuses.length) {
+            return prevStatuses;
         }
         try {
             const repo = this.getRepo();
@@ -92,7 +92,7 @@ class HelixUtils {
             logger.info(`${operation} call response ${response.status} for ${bulkUrl}`);
             if (!response.ok && !AUTH_ERRORS.includes(response.status) && retryAttempt <= MAX_RETRIES) {
                 await delay(RETRY_DELAY * 1000);
-                prevPubStatuses = await this.bulkPreview(paths, operation, grayboxExperienceName, retryAttempt + 1);
+                prevStatuses = await this.bulkPreview(paths, operation, grayboxExperienceName, retryAttempt + 1);
             } else if (response.ok) {
                 // Get job details
                 const jobResp = await response.json();
@@ -101,22 +101,23 @@ class HelixUtils {
                     logger.info(`check again jobName : ${jobName} operation : ${operation} repo : ${repo}`);
                     const jobStatus = await this.bulkJobStatus(jobName, operation, repo);
                     logger.info(`jobStatus : ${JSON.stringify(jobStatus)}`);
-                    prevPubStatuses.forEach((e) => {
+                    prevStatuses.forEach((e) => {
                         logger.info(`Job details : ${jobName} / ${jobResp.messageId} / ${jobResp.job?.state}`);
                         if (jobStatus[e.path]?.success) {
                             e.success = true;
                             e.resourcePath = jobStatus[e.path]?.resourcePath;
                         }
+                        e.responseCode = jobStatus[e.path]?.responseCode;
                     });
                 }
             }
         } catch (error) {
             logger.info(`Error in bulk ${operation} status: ${error.message}`);
-            prevPubStatuses.forEach((e) => {
+            prevStatuses.forEach((e) => {
                 e.success = false;
             });
         }
-        return prevPubStatuses;
+        return prevStatuses;
     }
 
     /**
@@ -146,9 +147,10 @@ class HelixUtils {
                 await this.bulkJobStatus(jobName, operation, repo, bulkPreviewStatus, retryAttempt + 1);
             } else if (response.ok) {
                 const jobStatusJson = await response.json();
+                logger.info(`jobStatusJson ${JSON.stringify(jobStatusJson)}`);
                 logger.info(`${operation} progress ${JSON.stringify(jobStatusJson.progress)}`);
                 jobStatusJson.data?.resources?.forEach((rs) => {
-                    bulkPreviewStatus[rs.path] = { success: JOB_STATUS_CODES.includes(rs.status), resourcePath: rs?.resourcePath };
+                    bulkPreviewStatus[rs.path] = { success: JOB_STATUS_CODES.includes(rs.status), resourcePath: rs?.resourcePath, responseCode: rs.status };
                 });
                 if (jobStatusJson.state !== 'stopped' && !jobStatusJson.cancelled &&
                     retryAttempt <= appConfig.getConfig().maxBulkPreviewChecks) {
