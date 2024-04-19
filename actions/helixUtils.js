@@ -106,6 +106,7 @@ class HelixUtils {
                         if (jobStatus[e.path]?.success) {
                             e.success = true;
                             e.resourcePath = jobStatus[e.path]?.resourcePath;
+                            e.mdPath = `https://${urlInfo.getBranch()}--${urlInfo.getRepo()}--${urlInfo.getOwner()}.hlx.page${e.resourcePath}`;
                         }
                         e.responseCode = jobStatus[e.path]?.responseCode;
                     });

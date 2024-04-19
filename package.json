@@ -5,9 +5,11 @@
   "dependencies": {
     "@adobe/aio-lib-core-logging": "^2.0.0",
     "@adobe/aio-sdk": "^3.0.0",
-    "openwhisk": "^3.21.7",
     "@azure/msal-node": "^1.17.2",
-    "node-fetch": "^2.6.0"
+    "milo-md2docx": "^1.8.1",
+    "milo-parse-markdown": "^1.0.0",
+    "node-fetch": "^2.6.0",
+    "openwhisk": "^3.21.7"
   },
   "devDependencies": {
     "@babel/core": "^7.21.3",

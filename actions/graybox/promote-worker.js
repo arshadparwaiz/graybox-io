@@ -21,6 +21,9 @@ const { getConfig } = require('../config');
 const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable, bulkCreateFolders } = require('../sharepoint');
 const helixUtils = require('../helixUtils');
 const sharepointAuth = require('../sharepointAuth');
+const updateDocument = require('../docxUpdater');
+const fetch = require('node-fetch');
+
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
@@ -67,13 +70,29 @@ async function main(params) {
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
         });
-        
-        const previewStatuses = await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName);
-
-        failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
-        const promoteErrors = failedPreviews.length > 0;
-
-        logger.info(`Failed Previews: ${JSON.stringify(failedPreviews)}`);
+        previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName));
+        logger.info(`Preview Statuses >> ${JSON.stringify(previewStatuses)}`);
+        const failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
+        const urlInfo = appConfig.getUrlInfo();
+        const options = {};
+        if (helixUtils.getAdminApiKey()) {
+            options.headers = new fetch.Headers();
+            options.headers.append('Authorization', `token ${helixUtils.getAdminApiKey()}`);
+        }
+    
+        // iterate through preview statuses and log success
+        previewStatuses.forEach((status) => {
+            //check if status is an array and iterate through the array
+            if (Array.isArray(status)) {
+                status.forEach((stat) => {
+                    logger.info(`status >> ${JSON.stringify(stat)}`);
+                    if (stat.success && stat.mdPath) {
+                        logger.info(`Preview success and mdPath for file: ${stat.path} & ${stat.mdPath}`);
+                        updateDocument(stat.mdPath, experienceName, options);
+                    }
+                });
+            }
+        });
     }
 
     // Update project excel file with status (sample)
