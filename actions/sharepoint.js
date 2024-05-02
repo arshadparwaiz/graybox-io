@@ -168,10 +168,14 @@ function getFileNameFromPath(path) {
 }
 
 async function createUploadSession(sp, file, dest, filename, isGraybox) {
+    let fileSize = file.size;
+    if (Buffer.isBuffer(file)) {
+        fileSize = Buffer.byteLength(file);
+    }
     const payload = {
         ...sp.api.file.createUploadSession.payload,
         description: 'Preview file',
-        fileSize: file.size,
+        fileSize,
         name: filename,
     };
     const options = await getAuthorizedRequestOption({ method: sp.api.file.createUploadSession.method });
@@ -188,9 +192,13 @@ async function uploadFile(sp, uploadUrl, file) {
         json: false,
         method: sp.api.file.upload.method,
     });
+    let fileSize = file.size;
+    if (Buffer.isBuffer(file)) {
+        fileSize = Buffer.byteLength(file);
+    }
     // TODO API is limited to 60Mb, for more, we need to batch the upload.
-    options.headers.append('Content-Length', file.size);
-    options.headers.append('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+    options.headers.append('Content-Length', fileSize);
+    options.headers.append('Content-Range', `bytes 0-${fileSize - 1}/${fileSize}`);
     options.headers.append('Prefer', 'bypass-shared-lock');
     options.body = file;
     return fetchWithRetry(`${uploadUrl}`, options);
