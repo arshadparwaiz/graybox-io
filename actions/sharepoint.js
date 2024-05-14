@@ -144,12 +144,15 @@ async function getFileUsingDownloadUrl(downloadUrl) {
 }
 
 async function createFolder(folder, isGraybox) {
+    const logger = getAioLogger();
+    logger.info(`Creating folder ${folder}`);
     const { sp } = await getConfig();
     const options = await getAuthorizedRequestOption({ method: sp.api.directory.create.method });
     options.body = JSON.stringify(sp.api.directory.create.payload);
 
     const baseURI = isGraybox ? sp.api.directory.create.gbBaseURI : sp.api.directory.create.baseURI;
     const res = await fetchWithRetry(`${baseURI}${folder}`, options);
+    logger.info(`Created folder ${folder} with status ${res.status}`);
     if (res.ok) {
         return res.json();
     }
@@ -167,23 +170,37 @@ function getFileNameFromPath(path) {
     return path.split('/').pop().split('/').pop();
 }
 
+/**
+ * Create Upload Session
+ * @param {*} sp sharepoint config
+ * @param {*} file file object to be uploaded
+ * @param {*} dest destination/target file full path with folder and filename with extension
+ * @param {*} filename filename with extension
+ * @param {*} isGraybox is graybox flag
+ * @returns upload session json object
+ */
 async function createUploadSession(sp, file, dest, filename, isGraybox) {
+    const logger = getAioLogger();
+
     let fileSize = file.size;
     if (Buffer.isBuffer(file)) {
         fileSize = Buffer.byteLength(file);
     }
+
     const payload = {
         ...sp.api.file.createUploadSession.payload,
         description: 'Preview file',
         fileSize,
         name: filename,
     };
+
     const options = await getAuthorizedRequestOption({ method: sp.api.file.createUploadSession.method });
     options.body = JSON.stringify(payload);
 
     const baseURI = isGraybox ? sp.api.file.createUploadSession.gbBaseURI : sp.api.file.createUploadSession.baseURI;
 
     const createdUploadSession = await fetchWithRetry(`${baseURI}${dest}:/createUploadSession`, options);
+
     return createdUploadSession.ok ? createdUploadSession.json() : undefined;
 }
 
@@ -223,6 +240,11 @@ async function releaseUploadSession(sp, uploadUrl) {
     await deleteFile(sp, uploadUrl);
 }
 
+/**
+ * Get Locked File New Name
+ * @param {*} filename original file name
+ * @returns new locked file name with timestamp
+ */
 function getLockedFileNewName(filename) {
     const extIndex = filename.indexOf('.');
     const fileNameWithoutExtn = filename.substring(0, extIndex);
@@ -230,7 +252,18 @@ function getLockedFileNewName(filename) {
     return `${fileNameWithoutExtn}-locked-${Date.now()}${fileExtn}`;
 }
 
+/**
+ * Create session and upload file
+ * @param {*} sp sharepoint config
+ * @param {*} file file object to be uploaded
+ * @param {*} dest destination/target file full path with folder and filename with extension
+ * @param {*} filename filename with extension
+ * @param {*} isGraybox is graybox flag
+ * @returns upload status object
+ */
 async function createSessionAndUploadFile(sp, file, dest, filename, isGraybox) {
+    const logger = getAioLogger();
+    logger.info(`Creating session and uploading file ${filename} to ${dest}`);
     const createdUploadSession = await createUploadSession(sp, file, dest, filename, isGraybox);
     const status = {};
     if (createdUploadSession) {
@@ -273,14 +306,12 @@ async function bulkCreateFolders(srcPathList, isGraybox) {
     }).filter((e) => true && e);
     const uniqPathLst = Array.from(new Set(allPaths));
     const leafPathLst = uniqPathLst.filter((e) => uniqPathLst.findIndex((e1) => e1.indexOf(`${e}/`) >= 0) < 0);
-    // logger.info(`Unique path list ${JSON.stringify(leafPathLst)}`);
     try {
         logger.info('bulkCreateFolders started');
         const promises = leafPathLst.map((folder) => createFolder(folder, isGraybox));
         logger.info('Got createfolder promises and waiting....');
         createtFolderStatuses.push(...await Promise.all(promises));
         logger.info(`bulkCreateFolders completed ${createtFolderStatuses?.length}`);
-        // logger.info(`bulkCreateFolders statuses ${JSON.stringify(createtFolderStatuses)}`);
     } catch (error) {
         logger.info('Error while creating folders');
         logger.info(error?.stack);
@@ -289,12 +320,29 @@ async function bulkCreateFolders(srcPathList, isGraybox) {
     return createtFolderStatuses;
 }
 
-async function copyFile(srcPath, destinationFolder, newName, isGraybox, isGrayboxLockedFile) {
+/**
+ * Copy File
+ * @param {*} srcPath source file full path with folder and filename with extension
+ * @param {*} destinationFolder destination folder path
+ * @param {*} newName new file name
+ * @param {*} isGraybox is graybox flag
+ * @param {*} isGrayboxLockedFile is graybox locked file flag
+ * @param {*} spConfig sharepoint config
+ * @returns copy status true/false for the file
+ */
+async function copyFile(srcPath, destinationFolder, newName, isGraybox, isGrayboxLockedFile, spConfig) {
     const logger = getAioLogger();
-    const { sp } = await getConfig();
-    const { baseURI, gbBaseURI } = sp.api.file.copy;
-    const rootFolder = isGraybox ? gbBaseURI.split('/').pop() : baseURI.split('/').pop();
+    logger.info(`In copy function: ${srcPath} to ${destinationFolder} with ${newName}`);
+    let sp;
+    if (spConfig) {
+        sp = spConfig;
+    } else {
+        sp = await getConfig().sp;
+    }
 
+    const { baseURI, gbBaseURI } = sp.api.file.copy;
+    const rootFolder = isGraybox ? gbBaseURI.split('/').pop() : baseURI.split('/').pop();    logger.info(`Copying file ${srcPath} to ${destinationFolder}`);
+    logger.info(`Copying file ${srcPath} to ${destinationFolder}`);
     const payload = { ...sp.api.file.copy.payload, parentReference: { path: `${rootFolder}${destinationFolder}` } };
     if (newName) {
         payload.name = newName;
@@ -306,6 +354,8 @@ async function copyFile(srcPath, destinationFolder, newName, isGraybox, isGraybo
     // In case of copy action triggered via saveFile(), locked file copy happens in the graybox content location
     // So baseURI is updated to reflect the destination accordingly
     const contentURI = isGraybox && isGrayboxLockedFile ? gbBaseURI : baseURI;
+    // const contentURI = isGraybox ? gbBaseURI : baseURI;
+
     const copyStatusInfo = await fetchWithRetry(`${contentURI}${srcPath}:/copy?@microsoft.graph.conflictBehavior=replace`, options);
     const statusUrl = copyStatusInfo.headers.get('Location');
     let copySuccess = false;
@@ -325,13 +375,33 @@ async function copyFile(srcPath, destinationFolder, newName, isGraybox, isGraybo
     return copySuccess;
 }
 
-async function saveFile(file, dest, isGraybox) {
+/**
+ * Save File
+ * Also handles the locked files by renaming the locked file, copying it to a new file called -locked-<timestamp>,
+ * then reuploads the original file and then deleting the renamed locked file.
+ * @param {*} file file object to be saved
+ * @param {*} dest destination file full path with folder and filename with extension
+ * @param {*} spConfig sharepoint config
+ * @param {*} isGraybox is graybox flag
+ * @returns save file status true/false for the file & the path of the file
+ */
+async function saveFile(file, dest, spConfig, isGraybox) {
+    const logger = getAioLogger();
+
     try {
         const folder = getFolderFromPath(dest);
         const filename = getFileNameFromPath(dest);
-        await createFolder(folder, isGraybox);
-        const { sp } = await getConfig();
+        logger.info(`Saving file ${filename} to ${folder}`);
+        // await createFolder(folder, isGraybox);
+        let sp;
+        if (spConfig) {
+            sp = spConfig;
+        } else {
+            sp = await getConfig().sp;
+        }
+
         let uploadFileStatus = await createSessionAndUploadFile(sp, file, dest, filename, isGraybox);
+
         if (uploadFileStatus.locked) {
             await releaseUploadSession(sp, uploadFileStatus.sessionUrl);
             const lockedFileNewName = getLockedFileNewName(filename);
@@ -339,7 +409,8 @@ async function saveFile(file, dest, isGraybox) {
             const spFileUrl = `${baseURI}${dest}`;
             await renameFile(spFileUrl, lockedFileNewName);
             const newLockedFilePath = `${folder}/${lockedFileNewName}`;
-            const copyFileStatus = await copyFile(newLockedFilePath, folder, filename, isGraybox, true);
+            const copyFileStatus = await copyFile(newLockedFilePath, folder, filename, isGraybox, true, sp);
+
             if (copyFileStatus) {
                 uploadFileStatus = await createSessionAndUploadFile(sp, file, dest, filename, isGraybox);
                 if (uploadFileStatus.success) {
@@ -355,6 +426,64 @@ async function saveFile(file, dest, isGraybox) {
         return { success: false, path: dest, errorMsg: error.message };
     }
     return { success: false, path: dest };
+}
+
+/**
+ * Promote Copy
+ * Copies the Graaybox files back to the main content tree.
+ * Creates intermediate folders if needed.
+* @param {*} srcPath Graybox Source Path
+ * @param {*} destinationFolder Promote Destination Folder
+ * @param {*} fileName FileName to be promoted
+ * @param {*} sp sharepoint config
+ * @returns promote status true/false for the file
+ */
+async function promoteCopy(srcPath, destinationFolder, fileName, sp) {
+    const { baseURI } = sp.api.file.copy;
+    const rootFolder = baseURI.split('/').pop();
+
+    const payload = { ...sp.api.file.copy.payload, parentReference: { path: `${rootFolder}${destinationFolder}` } };
+
+    const options = await getAuthorizedRequestOption({
+        method: sp.api.file.copy.method,
+        body: JSON.stringify(payload),
+    });
+
+    // copy source is the Graybox directory for promote
+    const copyStatusInfo = await fetchWithRetry(`${sp.api.file.copy.gbBaseURI}${srcPath}:/copy?@microsoft.graph.conflictBehavior=replace`, options);
+    const statusUrl = copyStatusInfo.headers.get('Location');
+
+    let copySuccess = false;
+    let copyStatusJson = {};
+    while (statusUrl && !copySuccess && copyStatusJson.status !== 'failed') {
+        // eslint-disable-next-line no-await-in-loop
+        const status = await fetchWithRetry(statusUrl);
+        if (status.ok) {
+            // eslint-disable-next-line no-await-in-loop
+            copyStatusJson = await status.json();
+            copySuccess = copyStatusJson.status === 'completed';
+        }
+    }
+
+    // If copy failed because it is Locked, try to copy the locked file to a new file,
+    // then promote copy again, then delete the renamed locked file copy
+    if (!copySuccess) {
+        // await releaseUploadSession(sp, uploadFileStatus.sessionUrl);
+        const lockedFileNewName = getLockedFileNewName(fileName);
+        // const baseURI = isGraybox ? sp.api.file.get.gbBaseURI : sp.api.file.get.baseURI;
+        const spFileUrl = `${baseURI}${destinationFolder}/${fileName}`;
+        await renameFile(spFileUrl, lockedFileNewName);
+        const folder = getFolderFromPath(`${destinationFolder}/${fileName}`);
+        const newLockedFilePath = `${folder}/${lockedFileNewName}`;
+        const copyFileStatus = await copyFile(newLockedFilePath, folder, fileName, false, true, sp);
+        if (copyFileStatus) {
+            copySuccess = await promoteCopy(srcPath, destinationFolder, fileName, sp);
+            if (copySuccess) {
+                await deleteFile(sp, `${baseURI}${newLockedFilePath}`);
+            }
+        }
+    }
+    return copySuccess;
 }
 
 async function getExcelTable(excelPath, tableName) {
@@ -456,6 +585,7 @@ module.exports = {
     getFileUsingDownloadUrl,
     copyFile,
     saveFile,
+    promoteCopy,
     createFolder,
     updateExcelTable,
     fetchWithRetry,

@@ -14,7 +14,6 @@
 * is strictly forbidden unless prior written permission is obtained
 * from Adobe.
 ************************************************************************* */
-
 const appConfig = require('./appConfig');
 
 const GRAPH_API = 'https://graph.microsoft.com/v1.0';
@@ -103,6 +102,7 @@ function getHelixAdminConfig() {
 async function getConfig() {
     if (appConfig.getUrlInfo().isValid()) {
         const applicationConfig = appConfig.getConfig();
+
         return {
             sp: getSharepointConfig(applicationConfig),
             admin: getHelixAdminConfig(),

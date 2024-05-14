@@ -66,7 +66,11 @@ class HelixUtils {
      * @returns List of path with preview/pubish status e.g. [{path:'/draft/file1', success: true}..]
      */
     async bulkPreview(paths, operation, grayboxExperienceName, retryAttempt = 1) {
-        let prevStatuses = paths.filter((p) => p).map((path) => ({ success: false, path, resourcePath: '', responseCode: '' }));
+        let prevStatuses = paths.filter((p) => p).map((path) => (
+            {
+                success: false, path, fileName: '', resourcePath: '', responseCode: ''
+            }
+        ));
         if (!prevStatuses.length) {
             return prevStatuses;
         }
@@ -98,14 +102,14 @@ class HelixUtils {
                 const jobResp = await response.json();
                 const jobName = jobResp.job?.name;
                 if (jobName) {
-                    logger.info(`check again jobName : ${jobName} operation : ${operation} repo : ${repo}`);
                     const jobStatus = await this.bulkJobStatus(jobName, operation, repo);
-                    logger.info(`jobStatus : ${JSON.stringify(jobStatus)}`);
                     prevStatuses.forEach((e) => {
                         logger.info(`Job details : ${jobName} / ${jobResp.messageId} / ${jobResp.job?.state}`);
                         if (jobStatus[e.path]?.success) {
                             e.success = true;
+                            e.fileName = jobStatus[e.path]?.fileName;
                             e.resourcePath = jobStatus[e.path]?.resourcePath;
+
                             e.mdPath = `https://${urlInfo.getBranch()}--${urlInfo.getRepo()}--${urlInfo.getOwner()}.hlx.page${e.resourcePath}`;
                         }
                         e.responseCode = jobStatus[e.path]?.responseCode;
@@ -131,7 +135,6 @@ class HelixUtils {
      * @returns List of path with preview/pubish status e.g. ['/draft/file1': {success: true}..]
      */
     async bulkJobStatus(jobName, operation, repo, bulkPreviewStatus = {}, retryAttempt = 1) {
-        logger.info(`Checking job status of ${jobName} for ${operation}`);
         try {
             const { helixAdminApiKeys } = appConfig.getConfig();
             const options = {};
@@ -148,10 +151,10 @@ class HelixUtils {
                 await this.bulkJobStatus(jobName, operation, repo, bulkPreviewStatus, retryAttempt + 1);
             } else if (response.ok) {
                 const jobStatusJson = await response.json();
-                logger.info(`jobStatusJson ${JSON.stringify(jobStatusJson)}`);
-                logger.info(`${operation} progress ${JSON.stringify(jobStatusJson.progress)}`);
                 jobStatusJson.data?.resources?.forEach((rs) => {
-                    bulkPreviewStatus[rs.path] = { success: JOB_STATUS_CODES.includes(rs.status), resourcePath: rs?.resourcePath, responseCode: rs.status };
+                    bulkPreviewStatus[rs.path] = {
+                        success: JOB_STATUS_CODES.includes(rs.status), fileName: rs?.source?.name, resourcePath: rs?.resourcePath, responseCode: rs.status
+                    };
                 });
                 if (jobStatusJson.state !== 'stopped' && !jobStatusJson.cancelled &&
                     retryAttempt <= appConfig.getConfig().maxBulkPreviewChecks) {

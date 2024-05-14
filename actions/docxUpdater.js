@@ -17,15 +17,15 @@
 const parseMarkdown = require('milo-parse-markdown').default;
 const { mdast2docx } = require('../node_modules/milo-md2docx/lib/index');
 const { getAioLogger } = require('./utils');
-const { fetchWithRetry } = require('./sharepoint');
 
-const gbStyleExpression = 'gb-';//graybox style expression. need to revisit if there are any more styles to be considered.
+const DEFAULT_STYLES = require('../defaultstyles.xml');
+
+const gbStyleExpression = 'gb-'; // graybox style expression. need to revisit if there are any more styles to be considered.
 const emptyString = '';
 const grayboxStylesRegex = new RegExp('gb-[a-zA-Z0-9,._-]*', 'g');
 const gbDomainSuffix = '-graybox';
 const logger = getAioLogger();
 let firstGtRows = [];
-
 
 /**
  * Updates a document based on the provided Markdown file path, experience name, and options.
@@ -34,23 +34,27 @@ let firstGtRows = [];
  * @param {object} options - The options for fetching the Markdown file.
  * @returns {Promise} - A promise that resolves to the generated Docx file.
  */
-async function updateDocument(mdPath, expName, options = {}){
+async function updateDocument(content, expName, hlxAdminApiKey) {
     firstGtRows = [];
-    const response = await fetchWithRetry(`${mdPath}`, options);
-    const content = await response.text();
-    if (content.includes(expName) || content.includes(gbStyleExpression) || content.includes(gbDomainSuffix)) {
-        const state = { content: { data: content }, log: '' };
-        await parseMarkdown(state);
-        const { mdast } = state.content;
-        updateExperienceNameFromLinks(mdast.children, expName);
-        logger.info('Experience name removed from links');
-        iterateGtRowsToReplaceStyles();
-        logger.info('Graybox styles removed');
-        //generated docx file from updated mdast
-        const docx = await generateDocxFromMdast(mdast);
-        //TODO promote this docx file
-        logger.info('Mdast to Docx file conversion done');
+    let docx;
+
+    const state = { content: { data: content }, log: '' };
+    await parseMarkdown(state);
+    const { mdast } = state.content;
+    updateExperienceNameFromLinks(mdast.children, expName);
+
+    iterateGtRowsToReplaceStyles();
+
+    try {
+        // generated docx file from updated mdast
+        docx = await generateDocxFromMdast(mdast, hlxAdminApiKey);
+    } catch (err) {
+        // Mostly bad string ignored
+        logger.debug(`Error while generating docxfromdast ${err}`);
     }
+
+    logger.info('Mdast to Docx file conversion done');
+    return docx;
 }
 
 /**
@@ -62,47 +66,47 @@ async function updateDocument(mdPath, expName, options = {}){
 const updateExperienceNameFromLinks = (mdast, expName) => {
     if (mdast) {
         mdast.forEach((child) => {
-                if (child.type === 'gridTable') {
-                    firstGtRows.push(findFirstGtRowInNode(child));
-                }
-                //remove experience name from links on the document
-                if (child.type === 'link' && child.url && (child.url.includes(expName) || child.url.includes(gbDomainSuffix))) {
-                    child.url = child.url.replaceAll(`/${expName}/`, '/').replaceAll(gbDomainSuffix, emptyString);
-                    logger.info(`Link updated: ${child.url}`);
-                }
-                if (child.children) {
-                    updateExperienceNameFromLinks(child.children, expName);
-                }
+            if (child.type === 'gridTable') {
+                firstGtRows.push(findFirstGtRowInNode(child));
             }
-        );
+            // remove experience name from links on the document
+            if (child.type === 'link' && child.url && (child.url.includes(expName) || child.url.includes(gbDomainSuffix))) {
+                child.url = child.url.replaceAll(`/${expName}/`, '/').replaceAll(gbDomainSuffix, emptyString);
+            }
+            if (child.children) {
+                updateExperienceNameFromLinks(child.children, expName);
+            }
+        });
     }
-}
+};
 
 /**
  * Helper function, iterates through the firstGtRows array and replaces graybox styles for each row.
  */
 const iterateGtRowsToReplaceStyles = () => {
-    firstGtRows.forEach((gtRow) => {
-        if (gtRow && gtRow.children) {
-            replaceGrayboxStyles(gtRow);
-        }
-    });
-}
+    try {
+        firstGtRows.forEach((gtRow) => {
+            if (gtRow && gtRow.children) {
+                replaceGrayboxStyles(gtRow);
+            }
+        });
+    } catch (err) {
+        // Mostly bad string ignored
+        logger().debug(`Error while iterating GTRows to replaces styles ${err}`);
+    }
+};
 
 /**
  * Replaces all graybox styles from blocks and text.
- * 
+ *
  * @param {object} node - The node to process.
  * @returns {void}
  */
 const replaceGrayboxStyles = (node) => {
-    //replace all graybox styles from blocks and text
+    // replace all graybox styles from blocks and text
     if (node && node.type === 'text' && node.value && node.value.includes(gbStyleExpression)) {
-        logger.info(node);
         node.value = node.value.replace(grayboxStylesRegex, emptyString)
             .replace('()', emptyString).replace(', )', ')');
-        logger.info('updated value>>  ');
-        logger.info(node);
         return;
     }
     if (node.children) {
@@ -110,7 +114,7 @@ const replaceGrayboxStyles = (node) => {
             replaceGrayboxStyles(child);
         });
     }
-}
+};
 
 /**
  * Finds the first 'gtRow' node in the given node or its children.
@@ -126,17 +130,25 @@ function findFirstGtRowInNode(node) {
             return findFirstGtRowInNode(child);
         }
     }
+    return null;
 }
-
 
 /**
  * Generate a Docx file from the given mdast.
  * @param {Object} mdast - The mdast representing the document.
  * @returns {Promise} A promise that resolves to the generated Docx file.
  */
-async function generateDocxFromMdast(mdast) {
-    logger.info('Docx file Docx file generation from mdast started...');
-    return await mdast2docx(mdast);   
+async function generateDocxFromMdast(mdast, hlxAdminApiKey) {
+    const options = {
+        stylesXML: DEFAULT_STYLES,
+        auth: {
+            authorization: `token ${hlxAdminApiKey}`,
+        }
+    };
+
+    const docx = await mdast2docx(mdast, options);
+
+    return docx;
 }
 
 module.exports = updateDocument;

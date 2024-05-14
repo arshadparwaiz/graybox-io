@@ -52,8 +52,8 @@ function isFilePatternMatched(filePath, patterns) {
 
 function logMemUsage() {
     const logger = getAioLogger();
-const memStr = JSON.stringify(process.memoryUsage());
-logger.info(`Memory Usage : ${memStr}`);
+    const memStr = JSON.stringify(process.memoryUsage());
+    logger.info(`Memory Usage : ${memStr}`);
 }
 
 async function delay(milliseconds = 100) {
