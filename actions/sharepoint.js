@@ -341,7 +341,7 @@ async function copyFile(srcPath, destinationFolder, newName, isGraybox, isGraybo
     }
 
     const { baseURI, gbBaseURI } = sp.api.file.copy;
-    const rootFolder = isGraybox ? gbBaseURI.split('/').pop() : baseURI.split('/').pop();    logger.info(`Copying file ${srcPath} to ${destinationFolder}`);
+    const rootFolder = isGraybox ? gbBaseURI.split('/').pop() : baseURI.split('/').pop();
     logger.info(`Copying file ${srcPath} to ${destinationFolder}`);
     const payload = { ...sp.api.file.copy.payload, parentReference: { path: `${rootFolder}${destinationFolder}` } };
     if (newName) {
@@ -499,14 +499,9 @@ async function getExcelTable(excelPath, tableName) {
     return [];
 }
 
-async function updateExcelTable(excelPath, tableName, values, isGraybox = false) {
+async function updateExcelTable(excelPath, tableName, values) {
     const { sp } = await getConfig();
-    let itemId = '';
-    if (isGraybox) {
-        itemId = await getItemId(sp.api.file.get.gbBaseURI, excelPath);
-    } else {
-        itemId = await getItemId(sp.api.file.get.baseURI, excelPath);
-    }
+    const itemId = await getItemId(sp.api.file.get.gbBaseURI, excelPath);
     if (itemId) {
         return executeGQL(`${sp.api.excel.update.baseItemsURI}/${itemId}/workbook/tables/${tableName}/rows`, {
             body: JSON.stringify({ values }),
