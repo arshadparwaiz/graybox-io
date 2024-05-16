@@ -24,32 +24,37 @@ const { getConfig } = require('../config');
 const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable } = require('../sharepoint');
 const helixUtils = require('../helixUtils');
 const updateDocument = require('../docxUpdater');
-const { saveFile, copyFile, promoteCopy } = require('../sharepoint');
+const { saveFile, promoteCopy } = require('../sharepoint');
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
-const IS_GRAYBOX = true;
 const BATCH_REQUEST_PREVIEW = 200;
 
 const gbStyleExpression = 'gb-'; // graybox style expression. need to revisit if there are any more styles to be considered.
 const gbDomainSuffix = '-graybox';
 
+/**
+ *  - Bulk Preview docx files
+ *  - GET markdown files using preview-url.md
+ *  - Process markdown - process MDAST by cleaning it up
+ *  - Generate updated Docx file using md2docx lib
+ *  - copy updated docx file to the default content tree
+ *  - run the bulk preview action on the list of files that were copied to default content tree
+ *  - update the project excel file as and when necessary to update the status of the promote action
+ */
 async function main(params) {
     logger.info('Graybox Promote Worker invoked');
 
     appConfig.setAppConfig(params);
     const { gbRootFolder, experienceName } = appConfig.getPayload();
+    const { projectExcelPath } = appConfig.getPayload();
+
+    // Update Promote Status
+    const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '']];
+    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
 
     logger.info(`GB ROOT FOLDER ::: ${gbRootFolder}`);
     logger.info(`GB EXP NAME ::: ${experienceName}`);
-
-    // TODO - Bulk Preview docx files
-    // TODO - GET markdown files using preview-url.md
-    // TODO - Process markdown - process MDAST by cleaning it up
-    // TODO - Generate updated Docx file using md2docx lib
-    // TODO - copy updated docx file to the default content tree
-    // TODO - run the bulk preview action on the list of files that were copied to default content tree
-    // TODO - update the project excel file as and when necessary to update the status of the promote action
 
     // Get all files in the graybox folder for the specific experience name
     // NOTE: This does not capture content inside the locale/expName folders yet
@@ -67,89 +72,98 @@ async function main(params) {
     // process data in batches
     const previewStatuses = [];
     let failedPreviews = [];
-    const promoteStatuses = [];
-    const failedPromoteStatuses = [];
     if (helixUtils.canBulkPreview()) {
         const paths = [];
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
         });
         previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName));
-        failedPreviews = previewStatuses.filter((status) => !status.success).map((status) => status.path);
+
+        failedPreviews = previewStatuses.flatMap((statusArray) => statusArray.filter((status) => !status.success)).map((status) => status.path);
 
         const helixAdminApiKey = helixUtils.getAdminApiKey();
 
-        const options = {};
-        if (helixUtils.getAdminApiKey()) {
-            options.headers = new fetch.Headers();
-            options.headers.append('Authorization', `token ${helixUtils.getAdminApiKey()}`);
-        }
+        // Promote Graybox files to the default content tree
+        const { failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey);
 
-        // iterate through preview statuses and log success
-        previewStatuses.forEach((status) => {
-            // check if status is an array and iterate through the array
-            if (Array.isArray(status)) {
-                status.forEach(async (stat) => {
-                    if (stat.success && stat.mdPath) {
-                        const response = await fetchWithRetry(`${stat.mdPath}`, options);
-                        const content = await response.text();
-                        let docx;
-                        const { sp } = await getConfig();
+        // Update project excel file with status (sample)
+        logger.info('Updating project excel file with status');
 
-                        if (content.includes(experienceName) || content.includes(gbStyleExpression) || content.includes(gbDomainSuffix)) {
-                            docx = await updateDocument(content, experienceName, helixAdminApiKey);
-                            if (docx) {
-                                // Save file Destination full path with file name and extension
-                                const destinationFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${stat.fileName}`;
+        const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews(Promote won't happen for these): \n${failedPreviews.join('\n')}` : '';
+        const excelValues = [['Preview completed', toUTCStr(new Date()), sFailedPreviews]];
+        // Update Preview Status
+        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
 
-                                const saveStatus = await saveFile(docx, destinationFilePath, sp);
-                                if (saveStatus && saveStatus.success === true) {
-                                    promoteStatuses.push(destinationFilePath);
-                                } else {
-                                    failedPromoteStatuses.push(destinationFilePath);
-                                }
-                            } else {
-                                logger.error(`Error generating docx file for ${stat.path}`);
-                            }
-                        } else {
-                            const copySourceFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1)}${stat.fileName}`; // Copy Source full path with file name and extension
-                            const copyDestinationFolder = `${stat.path.substring(0, stat.path.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`; // Copy Destination folder path, no file name
-                            const promoteCopyFileStatus = await promoteCopy(copySourceFilePath, copyDestinationFolder, stat.fileName, sp);
+        // Update Promote Status
+        const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
+        const promoteExcelValues = [['Promote completed', toUTCStr(new Date()), sFailedPromoteStatuses]];
 
-                            if (promoteCopyFileStatus) {
-                                promoteStatuses.push(`${copyDestinationFolder}/${stat.fileName}`);
-                            } else {
-                                failedPromoteStatuses.push(`${copyDestinationFolder}/${stat.fileName}`);
-                            }
-                        }
-                    }
-                });
-            }
-        });
+        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
     }
-
-    // Update project excel file with status (sample)
-    logger.info('Updating project excel file with status');
-    const curreDateTime = new Date();
-    const { projectExcelPath } = appConfig.getPayload();
-    const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews: \n${failedPreviews.join('\n')}` : '';
-    const excelValues = [['Preview', toUTCStr(curreDateTime), sFailedPreviews]];
-    // Update Preview Status
-    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues, IS_GRAYBOX);
-
-    // Update Promote Status
-    const sPromoteStatuses = promoteStatuses.length > 0 ? `Promotes: \n${promoteStatuses.join('\n')}` : '';
-    const sFailedPromoteStatuses = failedPromoteStatuses.length > 0 ? `Failed Promotes: \n${failedPromoteStatuses.join('\n')}` : '';
-    const promoteExcelValues = [['Promote', toUTCStr(curreDateTime), sPromoteStatuses]];
-    const failedPromoteExcelValues = [['Promote', toUTCStr(curreDateTime), sFailedPromoteStatuses]];
-
-    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues, IS_GRAYBOX);
-    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', failedPromoteExcelValues, IS_GRAYBOX);
-
     const responsePayload = 'Graybox Promote Worker action completed.';
     return exitAction({
         body: responsePayload,
     });
+}
+
+/**
+* Promote Graybox files to the default content tree
+ * @param {*} previewStatuses file preview statuses
+ * @param {*} experienceName graybox experience name
+ * @param {*} helixAdminApiKey helix admin api key for performing Mdast to Docx conversion
+ * @returns JSON array of failed promotes
+ */
+async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
+    const failedPromotes = [];
+    const options = {};
+    if (helixUtils.getAdminApiKey()) {
+        options.headers = new fetch.Headers();
+        options.headers.append('Authorization', `token ${helixUtils.getAdminApiKey()}`);
+    }
+
+    // iterate through preview statuses, generate docx files and promote them
+    const allPromises = previewStatuses.map(async (status) => {
+        // check if status is an array and iterate through the array
+        if (Array.isArray(status)) {
+            const promises = status.map(async (stat) => {
+                if (stat.success && stat.mdPath) {
+                    const response = await fetchWithRetry(`${stat.mdPath}`, options);
+                    const content = await response.text();
+                    let docx;
+                    const { sp } = await getConfig();
+
+                    if (content.includes(experienceName) || content.includes(gbStyleExpression) || content.includes(gbDomainSuffix)) {
+                        // Process the Graybox Styles and Links with Mdast to Docx conversion
+                        docx = await updateDocument(content, experienceName, helixAdminApiKey);
+                        if (docx) {
+                            // Save file Destination full path with file name and extension
+                            const destinationFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${stat.fileName}`;
+
+                            const saveStatus = await saveFile(docx, destinationFilePath, sp);
+
+                            if (!saveStatus || !saveStatus.success) {
+                                failedPromotes.push(destinationFilePath);
+                            }
+                        } else {
+                            logger.error(`Error generating docx file for ${stat.path}`);
+                        }
+                    } else {
+                        const copySourceFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1)}${stat.fileName}`; // Copy Source full path with file name and extension
+                        const copyDestinationFolder = `${stat.path.substring(0, stat.path.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`; // Copy Destination folder path, no file name
+
+                        const promoteCopyFileStatus = await promoteCopy(copySourceFilePath, copyDestinationFolder, stat.fileName, sp);
+
+                        if (!promoteCopyFileStatus) {
+                            failedPromotes.push(`${copyDestinationFolder}/${stat.fileName}`);
+                        }
+                    }
+                }
+            });
+            await Promise.all(promises); // await all async functions in the array are executed, before updating the status in the graybox project excel
+        }
+    });
+    await Promise.all(allPromises); // await all async functions in the array are executed, before updating the status in the graybox project excel
+    return { failedPromotes };
 }
 
 /**
