@@ -39,6 +39,9 @@ jobs:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
           GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          ENABLE_PREVEW: ${{ vars.ENABLE_PREVEW }}
+          BULK_PREVIEW_CHECK_INTERVAL: ${{ vars.BULK_PREVIEW_CHECK_INTERVAL }}
+          MAX_BULK_PREVIEW_CHECKS: ${{ vars.MAX_BULK_PREVIEW_CHECKS }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
           SPLUNK_HEC__HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN_STAGE }}
         uses: adobe/aio-apps-action@3.3.0
