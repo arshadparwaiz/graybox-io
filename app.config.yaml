@@ -23,13 +23,13 @@ application:
           promote:
             function: actions/graybox/promote.js
             web: 'yes'
-            runtime: nodejs:16
+            runtime: nodejs:18
             inputs:
               LOG_LEVEL: debug  
           promote-worker:
             function: actions/graybox/promote-worker.js
             web: 'no'
-            runtime: nodejs:16
+            runtime: nodejs:18
             inputs:
               LOG_LEVEL: debug
             limits:
