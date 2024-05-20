@@ -32,7 +32,6 @@ class AppConfig {
 
     setAppConfig(params) {
         const payload = this.initPayload();
-        getAioLogger().info(`Params in AppConfig: ${JSON.stringify(params)}`);
         // Called during action start to cleanup old entries
         this.removeOldPayload();
 
