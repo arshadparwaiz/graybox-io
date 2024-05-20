@@ -38,12 +38,21 @@ jobs:
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
-          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
-          ENABLE_PREVEW: ${{ vars.ENABLE_PREVEW }}
           BULK_PREVIEW_CHECK_INTERVAL: ${{ vars.BULK_PREVIEW_CHECK_INTERVAL }}
-          MAX_BULK_PREVIEW_CHECKS: ${{ vars.MAX_BULK_PREVIEW_CHECKS }}
+          CERT_KEY: ${{ secrets.CERT_KEY }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+          CERT_THUMB_PRINT: ${{ secrets.CERT_THUMB_PRINT }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          ENABLE_PREVEW: ${{ vars.ENABLE_PREVEW }}
+          HELIX_ADMIN_API_KEYS: ${{ vars.HELIX_ADMIN_API_KEYS }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
+          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          MAX_BULK_PREVIEW_CHECKS: ${{ vars.MAX_BULK_PREVIEW_CHECKS }}
+          SP_AUTHORITY: ${{ secrets.SP_AUTHORITY }}
+          SP_CLIENT_ID: ${{ secrets.SP_CLIENT_ID }}
+          SP_SITE: ${{ secrets.SP_SITE }}
           SPLUNK_HEC__HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN_STAGE }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
