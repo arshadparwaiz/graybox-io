@@ -18,9 +18,6 @@ jobs:
         run: |
           echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
           echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
-          echo "CLIENT_ID : $CLIENT_ID"
-          echo "TENANT_ID : $TENANT_ID"
-          echo "CERT_THUMB_PRINT : $CERT_THUMB_PRINT"
         env:
           GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
@@ -39,6 +36,13 @@ jobs:
           version: 10.x.x
       - name: Build
         env:
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}     
+        uses: adobe/aio-apps-action@3.3.0
+        with:
+          os: ${{ matrix.os }}
+          command: build
+      - name: Deploy
+        env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
           BULK_PREVIEW_CHECK_INTERVAL: ${{ vars.BULK_PREVIEW_CHECK_INTERVAL }}
@@ -56,14 +60,6 @@ jobs:
           SP_SITE: ${{ secrets.SP_SITE }}
           SPLUNK_HEC__HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN_STAGE }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
-        uses: adobe/aio-apps-action@3.3.0
-        with:
-          os: ${{ matrix.os }}
-          command: build
-      - name: Deploy
-        env:
-          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
-          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
