@@ -18,6 +18,9 @@ jobs:
         run: |
           echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
           echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
+          echo "CLIENT_ID : $CLIENT_ID"
+          echo "TENANT_ID : $TENANT_ID"
+          echo "CERT_THUMB_PRINT : $CERT_THUMB_PRINT"
         env:
           GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
