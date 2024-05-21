@@ -18,39 +18,9 @@ jobs:
         run: |
           echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
           echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
-          echo "AIO_RUNTIME_NAMESPACE : $AIO_RUNTIME_NAMESPACE_STAGE"
-          echo "AIO_RUNTIME_AUTH : $AIO_RUNTIME_AUTH_STAGE"
-          echo "BULK_PREVIEW_CHECK_INTERVAL: $BULK_PREVIEW_CHECK_INTERVAL"
-          echo "CERT_KEY: $CERT_KEY"
-          echo "CERT_PASSWORD: $CERT_PASSWORD"
-          echo "CERT_THUMB_PRINT: $CERT_THUMB_PRINT"
-          echo "CLIENT_ID: $CLIENT_ID"
-          echo "ENABLE_PREVEW: $ENABLE_PREVEW"
-          echo "HELIX_ADMIN_API_KEYS: $HELIX_ADMIN_API_KEYS"
-          echo "MAX_BULK_PREVIEW_CHECKS: $MAX_BULK_PREVIEW_CHECKS"
-          echo "SP_AUTHORITY: $SP_AUTHORITY"
-          echo "SP_CLIENT_ID: $SP_CLIENT_ID"
-          echo "SP_SITE: $SP_SITE"
-          echo "SPLUNK_HEC__HEC_TOKEN: $SPLUNK_HEC_TOKEN_STAGE"
-          echo "TENANT_ID: $TENANT_ID"
         env:
           GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
-          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
-          AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_STAGE }}
-          BULK_PREVIEW_CHECK_INTERVAL: ${{ vars.BULK_PREVIEW_CHECK_INTERVAL }}
-          CERT_KEY: ${{ secrets.CERT_KEY }}
-          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
-          CERT_THUMB_PRINT: ${{ secrets.CERT_THUMB_PRINT }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          ENABLE_PREVEW: ${{ vars.ENABLE_PREVEW }}
-          HELIX_ADMIN_API_KEYS: ${{ secrets.HELIX_ADMIN_API_KEYS }}
-          MAX_BULK_PREVIEW_CHECKS: ${{ vars.MAX_BULK_PREVIEW_CHECKS }}
-          SP_AUTHORITY: ${{ secrets.SP_AUTHORITY }}
-          SP_CLIENT_ID: ${{ secrets.SP_CLIENT_ID }}
-          SP_SITE: ${{ secrets.SP_SITE }}
-          SPLUNK_HEC__HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN_STAGE }}
-          TENANT_ID: ${{ secrets.TENANT_ID }}
       - name: Checkout
         uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
