@@ -52,6 +52,8 @@ async function getAuthorizedRequestOption({ body = null, json = true, method = '
         headers,
     };
 
+    headers.forEach((header) => getAioLogger().info(`Header: ${JSON.stringify(header)}`));
+
     if (body) {
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
