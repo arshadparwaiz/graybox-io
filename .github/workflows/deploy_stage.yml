@@ -50,7 +50,7 @@ jobs:
           CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
           CERT_THUMB_PRINT: ${{ secrets.CERT_THUMB_PRINT }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          ENABLE_PREVEW: ${{ vars.ENABLE_PREVEW }}
+          ENABLE_PREVIEW: ${{ vars.ENABLE_PREVIEW }}
           HELIX_ADMIN_API_KEYS: ${{ secrets.HELIX_ADMIN_API_KEYS }}
           GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
           GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
