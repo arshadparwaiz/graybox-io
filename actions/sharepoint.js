@@ -60,7 +60,9 @@ async function getAuthorizedRequestOption({ body = null, json = true, method = '
 }
 
 async function executeGQL(url, opts) {
+    getAioLogger().info(`Executing GQL URL ${url}`);
     const options = await getAuthorizedRequestOption(opts);
+    getAioLogger().info(`Executing GQL Opts ${JSON.stringify(options)}`);
     const res = await fetchWithRetry(url, options);
     if (!res.ok) {
         throw new Error(`Failed to execute ${url}`);
@@ -501,7 +503,11 @@ async function getExcelTable(excelPath, tableName) {
 
 async function updateExcelTable(excelPath, tableName, values) {
     const { sp } = await getConfig();
+    getAioLogger().info(`Updating Excel Table ${tableName} with values ${JSON.stringify(values)}`);
+    getAioLogger().info(`Excel Path ${excelPath}`);
+    getAioLogger().info(`sp config: ${JSON.stringify(sp)}`);
     const itemId = await getItemId(sp.api.file.get.gbBaseURI, excelPath);
+    getAioLogger().info(`itemId: ${JSON.stringify(itemId)}`);
     if (itemId) {
         return executeGQL(`${sp.api.excel.update.baseItemsURI}/${itemId}/workbook/tables/${tableName}/rows`, {
             body: JSON.stringify({ values }),
