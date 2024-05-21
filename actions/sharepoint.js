@@ -62,6 +62,7 @@ async function getAuthorizedRequestOption({ body = null, json = true, method = '
 async function executeGQL(url, opts) {
     const options = await getAuthorizedRequestOption(opts);
     const res = await fetchWithRetry(url, options);
+    getAioLogger().info(`Executing Excel Update with URL: ${url} \n Response: ${JSON.stringify(res.status)}`);
     if (!res.ok) {
         throw new Error(`Failed to execute ${url}`);
     }

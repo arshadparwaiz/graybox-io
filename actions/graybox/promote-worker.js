@@ -202,6 +202,7 @@ async function findAllGrayboxFiles({
         const uri = `${baseURI}${gbFolders.shift()}:/children?$top=${MAX_CHILDREN}`;
         // eslint-disable-next-line no-await-in-loop
         const res = await fetchWithRetry(uri, options);
+        logger.info(`Find all Graybox files URI: ${uri} \nResponse: ${res.ok}`);
         if (res.ok) {
             // eslint-disable-next-line no-await-in-loop
             const json = await res.json();
