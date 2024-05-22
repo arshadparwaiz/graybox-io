@@ -26,6 +26,7 @@ const AUTH_ERRORS = [401, 403];
 const PREVIEW = 'preview';
 const PUBLISH = 'publish';
 const LIVE = 'live';
+const GRAYBOX_REPO_POSTFIX = '-graybox';
 
 const logger = getAioLogger();
 
@@ -34,24 +35,26 @@ class HelixUtils {
         return { PREVIEW, LIVE };
     }
 
-    getRepo() {
+    getRepo(isGraybox = false) {
         const urlInfo = appConfig.getUrlInfo();
-        return urlInfo.getRepo();
+        return isGraybox ? `${urlInfo.getRepo()}${GRAYBOX_REPO_POSTFIX}` : urlInfo.getRepo();
     }
 
-    getAdminApiKey() {
-        const repo = this.getRepo();
+    getAdminApiKey(isGraybox = false) {
+        const repo = this.getRepo(isGraybox);
         const { helixAdminApiKeys = {} } = appConfig.getConfig();
         return helixAdminApiKeys[repo];
     }
 
     /**
      * Checks if the preview is enabled for the main or graybox site
+     * @param {*} isGraybox isGraybox flag
      * @returns true if preview is enabled
      */
-    canBulkPreview() {
-        const repo = this.getRepo();
+    canBulkPreview(isGraybox = false) {
+        const repo = this.getRepo(isGraybox);
         const { enablePreview } = appConfig.getConfig();
+        getAioLogger().info(`Enable preview for ${repo} : ${enablePreview}`);
         const repoRegexArr = enablePreview.map((ps) => new RegExp(`^${ps}$`));
         return true && repoRegexArr.find((rx) => rx.test(repo));
     }
@@ -62,10 +65,11 @@ class HelixUtils {
      * @param {*} paths Paths of the files that needs to be previewed.
      * @param {*} operation Preivew
      * @param {*} grayboxExperienceName Graybox Experience Name
+     * @param {*} isGraybox isGraybox flag
      * @param {*} retryAttempt Iteration number of the retry attempt (Default = 1)
      * @returns List of path with preview/pubish status e.g. [{path:'/draft/file1', success: true}..]
      */
-    async bulkPreview(paths, operation, grayboxExperienceName, retryAttempt = 1) {
+    async bulkPreview(paths, operation, grayboxExperienceName, isGraybox = false, retryAttempt = 1) {
         let prevStatuses = paths.filter((p) => p).map((path) => (
             {
                 success: false, path, fileName: '', resourcePath: '', responseCode: ''
@@ -75,7 +79,7 @@ class HelixUtils {
             return prevStatuses;
         }
         try {
-            const repo = this.getRepo();
+            const repo = this.getRepo(isGraybox);
             const urlInfo = appConfig.getUrlInfo();
             let experienceName = grayboxExperienceName || '';
             experienceName = experienceName ? `${experienceName}/` : '';
@@ -87,7 +91,7 @@ class HelixUtils {
                 headers: new fetch.Headers([['Accept', 'application/json'], ['Content-Type', 'application/json']])
             };
 
-            const helixAdminApiKey = this.getAdminApiKey();
+            const helixAdminApiKey = this.getAdminApiKey(isGraybox);
             if (helixAdminApiKey) {
                 options.headers.append('Authorization', `token ${helixAdminApiKey}`);
             }
@@ -96,7 +100,7 @@ class HelixUtils {
             logger.info(`${operation} call response ${response.status} for ${bulkUrl}`);
             if (!response.ok && !AUTH_ERRORS.includes(response.status) && retryAttempt <= MAX_RETRIES) {
                 await delay(RETRY_DELAY * 1000);
-                prevStatuses = await this.bulkPreview(paths, operation, grayboxExperienceName, retryAttempt + 1);
+                prevStatuses = await this.bulkPreview(paths, operation, grayboxExperienceName, isGraybox, retryAttempt + 1);
             } else if (response.ok) {
                 // Get job details
                 const jobResp = await response.json();

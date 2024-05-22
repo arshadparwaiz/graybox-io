@@ -72,19 +72,18 @@ async function main(params) {
     // process data in batches
     const previewStatuses = [];
     let failedPreviews = [];
-    if (helixUtils.canBulkPreview()) {
+
+    const promotedPreviewStatuses = [];
+    let promotedFailedPreviews = [];
+
+    if (helixUtils.canBulkPreview(true)) {
         const paths = [];
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
         });
-        previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName));
+        previewStatuses.push(await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName, true));
 
         failedPreviews = previewStatuses.flatMap((statusArray) => statusArray.filter((status) => !status.success)).map((status) => status.path);
-
-        const helixAdminApiKey = helixUtils.getAdminApiKey();
-
-        // Promote Graybox files to the default content tree
-        const { failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey);
 
         // Update project excel file with status (sample)
         logger.info('Updating project excel file with status');
@@ -94,11 +93,32 @@ async function main(params) {
         // Update Preview Status
         await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
 
+        const helixAdminApiKey = helixUtils.getAdminApiKey();
+
+        // Promote Graybox files to the default content tree
+        const { promotes, failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey);
+
         // Update Promote Status
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
         const promoteExcelValues = [['Promote completed', toUTCStr(new Date()), sFailedPromoteStatuses]];
 
         await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
+
+        // Handle the extensions of promoted files
+        const promotedPaths = promotes.map((promote) => handleExtension(promote));
+
+        // Perform Preview of all Promoted files in the Default Content Tree
+        if (helixUtils.canBulkPreview(false)) {
+            promotedPaths.forEach((promote) => logger.info(`Promoted file in Default folder: ${promote}`));
+            promotedPreviewStatuses.push(await helixUtils.bulkPreview(promotedPaths, helixUtils.getOperations().PREVIEW, experienceName, false));
+        }
+
+        promotedFailedPreviews = promotedPreviewStatuses.flatMap((statusArray) => statusArray.filter((status) => !status.success)).map((status) => status.path);
+        const sFailedPromotedPreviews = promotedFailedPreviews.length > 0 ? `Failed Promoted Previews: \n${promotedFailedPreviews.join('\n')}` : '';
+
+        const promotedExcelValues = [['Promoted Files Preview completed', toUTCStr(new Date()), sFailedPromotedPreviews]];
+        // Update Promoted Preview Status
+        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promotedExcelValues);
     }
     const responsePayload = 'Graybox Promote Worker action completed.';
     return exitAction({
@@ -114,6 +134,7 @@ async function main(params) {
  * @returns JSON array of failed promotes
  */
 async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
+    const promotes = [];
     const failedPromotes = [];
     const options = {};
     if (helixUtils.getAdminApiKey()) {
@@ -141,7 +162,9 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
 
                             const saveStatus = await saveFile(docx, destinationFilePath, sp);
 
-                            if (!saveStatus || !saveStatus.success) {
+                            if (saveStatus && saveStatus.success) {
+                                promotes.push(destinationFilePath);
+                            } else {
                                 failedPromotes.push(destinationFilePath);
                             }
                         } else {
@@ -153,7 +176,9 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
 
                         const promoteCopyFileStatus = await promoteCopy(copySourceFilePath, copyDestinationFolder, stat.fileName, sp);
 
-                        if (!promoteCopyFileStatus) {
+                        if (promoteCopyFileStatus) {
+                            promotes.push(`${copyDestinationFolder}/${stat.fileName}`);
+                        } else {
                             failedPromotes.push(`${copyDestinationFolder}/${stat.fileName}`);
                         }
                     }
@@ -163,7 +188,7 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
         }
     });
     await Promise.all(allPromises); // await all async functions in the array are executed, before updating the status in the graybox project excel
-    return { failedPromotes };
+    return { promotes, failedPromotes };
 }
 
 /**
