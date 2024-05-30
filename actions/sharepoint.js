@@ -144,10 +144,15 @@ async function getFileUsingDownloadUrl(downloadUrl) {
     return undefined;
 }
 
-async function createFolder(folder, isGraybox) {
+async function createFolder(folder, spConfig, isGraybox) {
     const logger = getAioLogger();
     logger.info(`Creating folder ${folder}`);
-    const { sp } = await getConfig();
+    let sp;
+    if (spConfig) {
+        sp = spConfig;
+    } else {
+        sp = await getConfig().sp;
+    }
     const options = await getAuthorizedRequestOption({ method: sp.api.directory.create.method });
     options.body = JSON.stringify(sp.api.directory.create.payload);
 
@@ -393,7 +398,7 @@ async function saveFile(file, dest, spConfig, isGraybox) {
         const folder = getFolderFromPath(dest);
         const filename = getFileNameFromPath(dest);
         logger.info(`Saving file ${filename} to ${folder}`);
-        // await createFolder(folder, isGraybox);
+        await createFolder(folder, spConfig);
         let sp;
         if (spConfig) {
             sp = spConfig;
@@ -442,7 +447,7 @@ async function saveFile(file, dest, spConfig, isGraybox) {
 async function promoteCopy(srcPath, destinationFolder, fileName, sp) {
     const { baseURI } = sp.api.file.copy;
     const rootFolder = baseURI.split('/').pop();
-
+    await createFolder(destinationFolder, sp);
     const payload = { ...sp.api.file.copy.payload, parentReference: { path: `${rootFolder}${destinationFolder}` } };
 
     const options = await getAuthorizedRequestOption({

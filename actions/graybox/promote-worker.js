@@ -110,7 +110,8 @@ async function main(params) {
         // Perform Preview of all Promoted files in the Default Content Tree
         if (helixUtils.canBulkPreview(false)) {
             promotedPaths.forEach((promote) => logger.info(`Promoted file in Default folder: ${promote}`));
-            promotedPreviewStatuses.push(await helixUtils.bulkPreview(promotedPaths, helixUtils.getOperations().PREVIEW, experienceName, false));
+            // Don't pass the experienceName & isGraybox params for the default content tree
+            promotedPreviewStatuses.push(await helixUtils.bulkPreview(promotedPaths, helixUtils.getOperations().PREVIEW));
         }
 
         promotedFailedPreviews = promotedPreviewStatuses.flatMap((statusArray) => statusArray.filter((status) => !status.success)).map((status) => status.path);
@@ -131,15 +132,17 @@ async function main(params) {
  * @param {*} previewStatuses file preview statuses
  * @param {*} experienceName graybox experience name
  * @param {*} helixAdminApiKey helix admin api key for performing Mdast to Docx conversion
- * @returns JSON array of failed promotes
+ * @returns JSON array of successful & failed promotes
  */
 async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
     const promotes = [];
     const failedPromotes = [];
     const options = {};
-    if (helixUtils.getAdminApiKey()) {
+    // Passing isGraybox param true to fetch graybox Hlx Admin API Key
+    const grayboxHlxAdminApiKey = helixUtils.getAdminApiKey(true);
+    if (grayboxHlxAdminApiKey) {
         options.headers = new fetch.Headers();
-        options.headers.append('Authorization', `token ${helixUtils.getAdminApiKey()}`);
+        options.headers.append('Authorization', `token ${grayboxHlxAdminApiKey}`);
     }
 
     // iterate through preview statuses, generate docx files and promote them

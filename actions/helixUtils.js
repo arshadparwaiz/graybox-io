@@ -54,7 +54,6 @@ class HelixUtils {
     canBulkPreview(isGraybox = false) {
         const repo = this.getRepo(isGraybox);
         const { enablePreview } = appConfig.getConfig();
-        getAioLogger().info(`Enable preview for ${repo} : ${enablePreview}`);
         const repoRegexArr = enablePreview.map((ps) => new RegExp(`^${ps}$`));
         return true && repoRegexArr.find((rx) => rx.test(repo));
     }
@@ -114,7 +113,7 @@ class HelixUtils {
                             e.fileName = jobStatus[e.path]?.fileName;
                             e.resourcePath = jobStatus[e.path]?.resourcePath;
 
-                            e.mdPath = `https://${urlInfo.getBranch()}--${urlInfo.getRepo()}--${urlInfo.getOwner()}.hlx.page${e.resourcePath}`;
+                            e.mdPath = `https://${urlInfo.getBranch()}--${this.getRepo(isGraybox)}--${urlInfo.getOwner()}.hlx.page${e.resourcePath}`;
                         }
                         e.responseCode = jobStatus[e.path]?.responseCode;
                     });
