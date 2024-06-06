@@ -93,7 +93,8 @@ async function main(params) {
         // Update Preview Status
         await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
 
-        const helixAdminApiKey = helixUtils.getAdminApiKey();
+        // Get the Helix Admin API Key for the Graybox content tree, needed for accessing (with auth) Images in graybox tree
+        const helixAdminApiKey = helixUtils.getAdminApiKey(true);
 
         // Promote Graybox files to the default content tree
         const { promotes, failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey);
