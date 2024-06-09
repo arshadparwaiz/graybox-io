@@ -22,7 +22,7 @@ const DEFAULT_STYLES = require('../defaultstyles.xml');
 
 const gbStyleExpression = 'gb-'; // graybox style expression. need to revisit if there are any more styles to be considered.
 const emptyString = '';
-const grayboxStylesRegex = new RegExp('gb-[a-zA-Z0-9,._-]*', 'g');
+const grayboxStylesRegex = /gb-[a-zA-Z0-9,._-]*/g;
 const gbDomainSuffix = '-graybox';
 const logger = getAioLogger();
 let firstGtRows = [];
@@ -41,9 +41,16 @@ async function updateDocument(content, expName, hlxAdminApiKey) {
     const state = { content: { data: content }, log: '' };
     await parseMarkdown(state);
     const { mdast } = state.content;
-    updateExperienceNameFromLinks(mdast.children, expName);
+    const mdastChildren = mdast.children;
 
+    // Transform Graybox Links
+    updateExperienceNameFromLinks(mdastChildren, expName);
+
+    // Remove Graybox Styles
     iterateGtRowsToReplaceStyles();
+
+    // Delete all Graybox Blocks in the document
+    iterateGtRowsToDeleteGrayboxBlock(mdastChildren);
 
     try {
         // generated docx file from updated mdast
@@ -132,6 +139,49 @@ function findFirstGtRowInNode(node) {
     }
     return null;
 }
+
+/**
+ * Checks if the given node is a graybox block.
+ */
+const isGbBlock = (gtRowNode) => {
+    if (gtRowNode && gtRowNode.children) {
+        // eslint-disable-next-line no-restricted-syntax
+        for (const child of gtRowNode.children) {
+            if (child.type === 'text' && child.value && child.value.includes('graybox')) {
+                return true;
+            }
+            if (isGbBlock(child)) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+
+/**
+ * Find and delete all graybox blocks from the given mdast.
+ */
+const iterateGtRowsToDeleteGrayboxBlock = (mdastChildren) => {
+    try {
+        let blockCtr = -1;
+        const gbBlockIndexes = [];
+        mdastChildren.forEach((gtRow) => {
+            // Increment for each block
+            blockCtr += 1;
+            const isGrayboxBlock = isGbBlock(gtRow);
+            if (isGrayboxBlock) {
+                gbBlockIndexes.push(blockCtr);
+            }
+        });
+        let updatedGbIndexCtr = 0;
+        gbBlockIndexes.forEach((index) => {
+            mdastChildren.splice(index - updatedGbIndexCtr, 1);
+            updatedGbIndexCtr += 1;
+        });
+    } catch (err) {
+        logger.error(`Error while iterating GTRows to Delete Graybox Blocks ${err}`);
+    }
+};
 
 /**
  * Generate a Docx file from the given mdast.
