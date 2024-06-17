@@ -434,62 +434,35 @@ async function saveFile(file, dest, spConfig, isGraybox) {
     return { success: false, path: dest };
 }
 
-/**
- * Promote Copy
- * Copies the Graaybox files back to the main content tree.
- * Creates intermediate folders if needed.
-* @param {*} srcPath Graybox Source Path
- * @param {*} destinationFolder Promote Destination Folder
- * @param {*} fileName FileName to be promoted
- * @param {*} sp sharepoint config
- * @returns promote status true/false for the file
- */
-async function promoteCopy(srcPath, destinationFolder, fileName, sp) {
-    const { baseURI } = sp.api.file.copy;
-    const rootFolder = baseURI.split('/').pop();
-    await createFolder(destinationFolder, sp);
-    const payload = { ...sp.api.file.copy.payload, parentReference: { path: `${rootFolder}${destinationFolder}` } };
+async function saveFileSimple(file, dest, spConfig, isGraybox) {
+    const logger = getAioLogger();
 
-    const options = await getAuthorizedRequestOption({
-        method: sp.api.file.copy.method,
-        body: JSON.stringify(payload),
-    });
-
-    // copy source is the Graybox directory for promote
-    const copyStatusInfo = await fetchWithRetry(`${sp.api.file.copy.gbBaseURI}${srcPath}:/copy?@microsoft.graph.conflictBehavior=replace`, options);
-    const statusUrl = copyStatusInfo.headers.get('Location');
-
-    let copySuccess = false;
-    let copyStatusJson = {};
-    while (statusUrl && !copySuccess && copyStatusJson.status !== 'failed') {
-        // eslint-disable-next-line no-await-in-loop
-        const status = await fetchWithRetry(statusUrl);
-        if (status.ok) {
-            // eslint-disable-next-line no-await-in-loop
-            copyStatusJson = await status.json();
-            copySuccess = copyStatusJson.status === 'completed';
+    try {
+        const folder = getFolderFromPath(dest);
+        const filename = getFileNameFromPath(dest);
+        logger.info(`Saving file ${filename} to ${folder}`);
+        await createFolder(folder, spConfig);
+        let sp;
+        if (spConfig) {
+            sp = spConfig;
+        } else {
+            sp = await getConfig().sp;
         }
-    }
 
-    // If copy failed because it is Locked, try to copy the locked file to a new file,
-    // then promote copy again, then delete the renamed locked file copy
-    if (!copySuccess) {
-        // await releaseUploadSession(sp, uploadFileStatus.sessionUrl);
-        const lockedFileNewName = getLockedFileNewName(fileName);
-        // const baseURI = isGraybox ? sp.api.file.get.gbBaseURI : sp.api.file.get.baseURI;
-        const spFileUrl = `${baseURI}${destinationFolder}/${fileName}`;
-        await renameFile(spFileUrl, lockedFileNewName);
-        const folder = getFolderFromPath(`${destinationFolder}/${fileName}`);
-        const newLockedFilePath = `${folder}/${lockedFileNewName}`;
-        const copyFileStatus = await copyFile(newLockedFilePath, folder, fileName, false, true, sp);
-        if (copyFileStatus) {
-            copySuccess = await promoteCopy(srcPath, destinationFolder, fileName, sp);
-            if (copySuccess) {
-                await deleteFile(sp, `${baseURI}${newLockedFilePath}`);
-            }
+        const uploadFileStatus = await createSessionAndUploadFile(sp, file, dest, filename, isGraybox);
+        if (uploadFileStatus.locked) {
+            logger.info(`Locked file detected: ${dest}`);
+            return { success: false, path: dest, errorMsg: 'File is locked' };
         }
+        const uploadedFileJson = uploadFileStatus.uploadedFile;
+        if (uploadedFileJson) {
+            return { success: true, uploadedFileJson, path: dest };
+        }
+    } catch (error) {
+        logger.info(`Error while saving file: ${dest} ::: ${error.message}`);
+        return { success: false, path: dest, errorMsg: error.message };
     }
-    return copySuccess;
+    return { success: false, path: dest };
 }
 
 async function getExcelTable(excelPath, tableName) {
@@ -581,12 +554,13 @@ module.exports = {
     executeGQL,
     getDriveRoot,
     getExcelTable,
+    getFileData,
     getFilesData,
     getFile,
     getFileUsingDownloadUrl,
     copyFile,
     saveFile,
-    promoteCopy,
+    saveFileSimple,
     createFolder,
     updateExcelTable,
     fetchWithRetry,

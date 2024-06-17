@@ -21,10 +21,12 @@ const {
 } = require('../utils');
 const appConfig = require('../appConfig');
 const { getConfig } = require('../config');
-const { getAuthorizedRequestOption, fetchWithRetry, updateExcelTable } = require('../sharepoint');
+const {
+    getAuthorizedRequestOption, fetchWithRetry, updateExcelTable,
+    getFileData, getFileUsingDownloadUrl, saveFileSimple
+} = require('../sharepoint');
 const helixUtils = require('../helixUtils');
 const updateDocument = require('../docxUpdater');
-const { saveFile, promoteCopy } = require('../sharepoint');
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
@@ -75,8 +77,9 @@ async function main(params) {
 
     const promotedPreviewStatuses = [];
     let promotedFailedPreviews = [];
-
+    let responsePayload = '';
     if (helixUtils.canBulkPreview(true)) {
+        logger.info('Bulk Previewing Graybox files');
         const paths = [];
         batchArray.forEach((batch) => {
             batch.forEach((gbFile) => paths.push(handleExtension(gbFile.filePath)));
@@ -121,8 +124,11 @@ async function main(params) {
         const promotedExcelValues = [['Promoted Files Preview completed', toUTCStr(new Date()), sFailedPromotedPreviews]];
         // Update Promoted Preview Status
         await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promotedExcelValues);
+        responsePayload = 'Graybox Promote Worker action completed.';
+    } else {
+        responsePayload = 'Bulk Preview not enabled for Graybox Content Tree';
     }
-    const responsePayload = 'Graybox Promote Worker action completed.';
+    logger.info(responsePayload);
     return exitAction({
         body: responsePayload,
     });
@@ -163,11 +169,12 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
                         if (docx) {
                             // Save file Destination full path with file name and extension
                             const destinationFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${stat.fileName}`;
+                            const saveStatus = await saveFileSimple(docx, destinationFilePath, sp);
 
-                            const saveStatus = await saveFile(docx, destinationFilePath, sp);
-
-                            if (saveStatus && saveStatus.success) {
+                            if (saveStatus?.success) {
                                 promotes.push(destinationFilePath);
+                            } else if (saveStatus?.errorMsg?.includes('File is locked')) {
+                                failedPromotes.push(`${destinationFilePath} (locked file)`);
                             } else {
                                 failedPromotes.push(destinationFilePath);
                             }
@@ -177,13 +184,18 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
                     } else {
                         const copySourceFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1)}${stat.fileName}`; // Copy Source full path with file name and extension
                         const copyDestinationFolder = `${stat.path.substring(0, stat.path.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`; // Copy Destination folder path, no file name
+                        const destFilePath = `${copyDestinationFolder}/${stat.fileName}`;
 
-                        const promoteCopyFileStatus = await promoteCopy(copySourceFilePath, copyDestinationFolder, stat.fileName, sp);
+                        const { fileDownloadUrl } = await getFileData(copySourceFilePath, true);
+                        const file = await getFileUsingDownloadUrl(fileDownloadUrl);
+                        const saveStatus = await saveFileSimple(file, destFilePath, sp);
 
-                        if (promoteCopyFileStatus) {
-                            promotes.push(`${copyDestinationFolder}/${stat.fileName}`);
+                        if (saveStatus?.success) {
+                            promotes.push(destFilePath);
+                        } else if (saveStatus?.errorMsg?.includes('File is locked')) {
+                            failedPromotes.push(`${destFilePath} (locked file)`);
                         } else {
-                            failedPromotes.push(`${copyDestinationFolder}/${stat.fileName}`);
+                            failedPromotes.push(destFilePath);
                         }
                     }
                 }
