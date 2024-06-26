@@ -1,8 +1,9 @@
-name: AIO App CI
+name: AIO App CI - Prod
 
 on:
-  release:
-    types: [released]
+  push:
+    branches:
+      - main
 jobs:
   deploy:
     name: Deploy to Prod
@@ -10,9 +11,16 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        node-version: ['20']
+        node-version: ['18']
         os: [ubuntu-latest]
     steps:
+      - name: Check Repo Variables
+        run: |
+          echo "GROUP_CHECK_URL : $GROUP_CHECK_URL"
+          echo "GRAYBOX_USER_GROUPS : $GRAYBOX_USER_GROUPS"
+        env:
+          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
       - name: Checkout
         uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
@@ -26,17 +34,6 @@ jobs:
         with:
           os: ${{ matrix.os }}
           version: 10.x.x
-      - name: Auth
-        uses: adobe/aio-apps-action@3.3.0
-        with:
-          os: ${{ matrix.os }}
-          command: oauth_sts
-          CLIENTID: ${{ secrets.CLIENTID_PROD }}
-          CLIENTSECRET: ${{ secrets.CLIENTSECRET_PROD }}
-          TECHNICALACCOUNTID: ${{ secrets.TECHNICALACCID_PROD }}
-          TECHNICALACCOUNTEMAIL: ${{ secrets.TECHNICALACCEMAIL_PROD }}
-          IMSORGID: ${{ secrets.IMSORGID_PROD }}
-          SCOPES: ${{ secrets.SCOPES_PROD }}
       - name: Build
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_PROD }}
@@ -48,13 +45,23 @@ jobs:
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_PROD }}
           AIO_RUNTIME_AUTH: ${{ secrets.AIO_RUNTIME_AUTH_PROD }}
-          AIO_PROJECT_ID: ${{ secrets.AIO_PROJECT_ID_PROD }}
-          AIO_PROJECT_NAME: ${{ secrets.AIO_PROJECT_NAME_PROD }}
-          AIO_PROJECT_ORG_ID: ${{ secrets.AIO_PROJECT_ORG_ID_PROD }}
-          AIO_PROJECT_WORKSPACE_ID: ${{ secrets.AIO_PROJECT_WORKSPACE_ID_PROD }}
-          AIO_PROJECT_WORKSPACE_NAME: ${{ secrets.AIO_PROJECT_WORKSPACE_NAME_PROD }}
-          AIO_PROJECT_WORKSPACE_DETAILS_SERVICES: ${{ secrets.AIO_PROJECT_WORKSPACE_DETAILS_SERVICES_PROD }}
+          BULK_PREVIEW_CHECK_INTERVAL: ${{ vars.BULK_PREVIEW_CHECK_INTERVAL }}
+          CERT_KEY: ${{ secrets.CERT_KEY }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+          CERT_THUMB_PRINT: ${{ secrets.CERT_THUMB_PRINT }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          ENABLE_PREVIEW: ${{ vars.ENABLE_PREVIEW }}
+          HELIX_ADMIN_API_KEYS: ${{ secrets.HELIX_ADMIN_API_KEYS }}
+          GRAYBOX_USER_GROUPS: ${{ vars.GRAYBOX_USER_GROUPS }}
+          GROUP_CHECK_URL: ${{ vars.GROUP_CHECK_URL }}
+          MAX_BULK_PREVIEW_CHECKS: ${{ vars.MAX_BULK_PREVIEW_CHECKS }}
+          SP_AUTHORITY: ${{ secrets.SP_AUTHORITY }}
+          SP_CLIENT_ID: ${{ secrets.SP_CLIENT_ID }}
+          SP_SITE: ${{ secrets.SP_SITE }}
+          SPLUNK_HEC__HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN_PROD }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
           command: deploy
+          noPublish: true
