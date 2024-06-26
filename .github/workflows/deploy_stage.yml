@@ -3,7 +3,7 @@ name: AIO App CI - Stage
 on:
   push:
     branches:
-      - main
+      - stage
 jobs:
   deploy:
     name: Deploy to Stage
