@@ -15,6 +15,7 @@
 * from Adobe.
 ************************************************************************* */
 
+const AppConfig = require('../appConfig');
 const GrayboxUser = require('../grayboxUser');
 
 function isGrayboxParamsValid(params) {
@@ -37,8 +38,8 @@ function isGrayboxParamsValid(params) {
 }
 
 async function isUserAuthorized(params, grpIds) {
-    const { spToken } = params;
-    const grayboxUser = new GrayboxUser({ at: spToken });
+    const appConfig = new AppConfig(params);
+    const grayboxUser = new GrayboxUser({ appConfig });
     const found = await grayboxUser.isInGroups(grpIds);
     return found;
 }

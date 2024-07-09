@@ -19,23 +19,23 @@
 const openwhisk = require('openwhisk');
 const { getAioLogger } = require('../utils');
 const { validateAction } = require('./validateAction');
-const appConfig = require('../appConfig');
+const AppConfig = require('../appConfig');
 
 async function main(params) {
     const logger = getAioLogger();
     const ow = openwhisk();
     let responsePayload = 'Graybox Promote action invoked';
     logger.info(responsePayload);
+    const appConfig = new AppConfig(params);
     try {
-        appConfig.setAppConfig(params);
         const grpIds = appConfig.getConfig().grayboxUserGroups;
         const vActData = await validateAction(params, grpIds, appConfig.ignoreUserCheck());
         if (vActData && vActData.code !== 200) {
             logger.info(`Validation failed: ${JSON.stringify(vActData)}`);
-            return exitAction(vActData);
+            return vActData;
         }
 
-        return exitAction(ow.actions.invoke({
+        return ow.actions.invoke({
             name: 'graybox/promote-worker',
             blocking: false,
             result: false,
@@ -53,22 +53,17 @@ async function main(params) {
                 code: 500,
                 payload: responsePayload
             };
-        }));
+        });
     } catch (err) {
         responsePayload = 'Unknown error occurred';
         logger.error(`${responsePayload}: ${err}`);
         responsePayload = err;
     }
 
-    return exitAction({
+    return {
         code: 500,
         payload: responsePayload,
-    });
-}
-
-function exitAction(resp) {
-    appConfig.removePayload();
-    return resp;
+    };
 }
 
 exports.main = main;

@@ -16,7 +16,6 @@
 ************************************************************************* */
 
 const fetch = require('node-fetch');
-const appConfig = require('./appConfig');
 const { getAioLogger, delay } = require('./utils');
 
 const MAX_RETRIES = 5;
@@ -31,18 +30,22 @@ const GRAYBOX_REPO_POSTFIX = '-graybox';
 const logger = getAioLogger();
 
 class HelixUtils {
+    constructor(appConfig) {
+        this.appConfig = appConfig;
+    }
+
     getOperations() {
         return { PREVIEW, LIVE };
     }
 
     getRepo(isGraybox = false) {
-        const urlInfo = appConfig.getUrlInfo();
+        const urlInfo = this.appConfig.getUrlInfo();
         return isGraybox ? `${urlInfo.getRepo()}${GRAYBOX_REPO_POSTFIX}` : urlInfo.getRepo();
     }
 
     getAdminApiKey(isGraybox = false) {
         const repo = this.getRepo(isGraybox);
-        const { helixAdminApiKeys = {} } = appConfig.getConfig();
+        const { helixAdminApiKeys = {} } = this.appConfig.getConfig();
         return helixAdminApiKeys[repo];
     }
 
@@ -53,7 +56,7 @@ class HelixUtils {
      */
     canBulkPreview(isGraybox = false) {
         const repo = this.getRepo(isGraybox);
-        const { enablePreview } = appConfig.getConfig();
+        const { enablePreview } = this.appConfig.getConfig();
         const repoRegexArr = enablePreview.map((ps) => new RegExp(`^${ps}$`));
         return true && repoRegexArr.find((rx) => rx.test(repo));
     }
@@ -79,7 +82,7 @@ class HelixUtils {
         }
         try {
             const repo = this.getRepo(isGraybox);
-            const urlInfo = appConfig.getUrlInfo();
+            const urlInfo = this.appConfig.getUrlInfo();
             let experienceName = grayboxExperienceName || '';
             experienceName = experienceName ? `${experienceName}/` : '';
 
@@ -139,18 +142,18 @@ class HelixUtils {
      */
     async bulkJobStatus(jobName, operation, repo, bulkPreviewStatus = {}, retryAttempt = 1) {
         try {
-            const { helixAdminApiKeys } = appConfig.getConfig();
+            const { helixAdminApiKeys } = this.appConfig.getConfig();
             const options = {};
             if (helixAdminApiKeys && helixAdminApiKeys[repo]) {
                 options.headers = new fetch.Headers();
                 options.headers.append('Authorization', `token ${helixAdminApiKeys[repo]}`);
             }
             const bulkOperation = operation === LIVE ? PUBLISH : operation;
-            const urlInfo = appConfig.getUrlInfo();
+            const urlInfo = this.appConfig.getUrlInfo();
             const statusUrl = `https://admin.hlx.page/job/${urlInfo.getOwner()}/${repo}/${urlInfo.getBranch()}/${bulkOperation}/${jobName}/details`;
             const response = await fetch(statusUrl, options);
-            if (!response.ok && retryAttempt <= appConfig.getConfig().maxBulkPreviewChecks) {
-                await delay(appConfig.getConfig().bulkPreviewCheckInterval * 1000);
+            if (!response.ok && retryAttempt <= this.appConfig.getConfig().maxBulkPreviewChecks) {
+                await delay(this.appConfig.getConfig().bulkPreviewCheckInterval * 1000);
                 await this.bulkJobStatus(jobName, operation, repo, bulkPreviewStatus, retryAttempt + 1);
             } else if (response.ok) {
                 const jobStatusJson = await response.json();
@@ -160,8 +163,8 @@ class HelixUtils {
                     };
                 });
                 if (jobStatusJson.state !== 'stopped' && !jobStatusJson.cancelled &&
-                    retryAttempt <= appConfig.getConfig().maxBulkPreviewChecks) {
-                    await delay(appConfig.getConfig().bulkPreviewCheckInterval * 1000);
+                    retryAttempt <= this.appConfig.getConfig().maxBulkPreviewChecks) {
+                    await delay(this.appConfig.getConfig().bulkPreviewCheckInterval * 1000);
                     await this.bulkJobStatus(jobName, operation, repo, bulkPreviewStatus, retryAttempt + 1);
                 }
             }
@@ -172,4 +175,4 @@ class HelixUtils {
     }
 }
 
-module.exports = new HelixUtils();
+module.exports = HelixUtils;

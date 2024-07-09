@@ -17,7 +17,6 @@
 
 const msal = require('@azure/msal-node');
 const { getAioLogger } = require('./utils');
-const appConfig = require('./appConfig');
 
 /**
  * Creates a new SharePoint object, that has two methods:
@@ -30,20 +29,25 @@ const appConfig = require('./appConfig');
  * @returns {object} Sharepoint object
  */
 class SharepointAuth {
-    init() {
-        const msalConfig = appConfig.getMsalConfig();
+    msalConfig = null;
 
+    constructor(msalConfig) {
+        this.msalConfig = msalConfig;
+        this.init();
+    }
+
+    init() {
         const missingConfigs = [];
-        if (!msalConfig.clientId) {
+        if (!this.msalConfig.clientId) {
             missingConfigs.push('CLIENT_ID');
         }
-        if (!msalConfig.tenantId) {
+        if (!this.msalConfig.tenantId) {
             missingConfigs.push('TENANT_ID');
         }
-        if (!msalConfig.certThumbprint) {
+        if (!this.msalConfig.certThumbprint) {
             missingConfigs.push('CERT_THUMB_PRINT');
         }
-        if (!msalConfig.pvtKey) {
+        if (!this.msalConfig.pvtKey) {
             missingConfigs.push('PRIVATE_KEY');
         }
         if (missingConfigs.length > 0) {
@@ -55,12 +59,12 @@ class SharepointAuth {
         }
         this.authConfig = {
             auth: {
-                clientId: msalConfig.clientId,
-                authority: `https://login.microsoftonline.com/${msalConfig.tenantId}`,
+                clientId: this.msalConfig.clientId,
+                authority: `https://login.microsoftonline.com/${this.msalConfig.tenantId}`,
                 knownAuthorities: ['login.microsoftonline.com'],
                 clientCertificate: {
-                    privateKey: msalConfig.pvtKey,
-                    thumbprint: msalConfig.certThumbprint,
+                    privateKey: this.msalConfig.pvtKey,
+                    thumbprint: this.msalConfig.certThumbprint,
                 },
             },
         };
@@ -122,4 +126,4 @@ class SharepointAuth {
     }
 }
 
-module.exports = new SharepointAuth();
+module.exports = SharepointAuth;
