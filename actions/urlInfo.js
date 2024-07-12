@@ -26,12 +26,10 @@ class UrlInfo {
         const projectName = getParam('project');
         const sub = projectName ? projectName.split('--') : [];
 
-        const referrer = getParam('referrer');
         const owner = getParam('owner') || sub[1];
         const repo = getParam('repo') || sub[0];
         const branch = getParam('ref') || 'main';
 
-        this.urlInfoMap.sp = referrer;
         this.urlInfoMap.owner = owner;
         this.urlInfoMap.repo = repo;
         this.urlInfoMap.branch = branch;
@@ -40,9 +38,9 @@ class UrlInfo {
 
     isValid() {
         const {
-            sp, owner, repo, branch
+            owner, repo, branch
         } = this.urlInfoMap;
-        return sp && owner && repo && branch;
+        return owner && repo && branch;
     }
 
     getUrlInfo() {
