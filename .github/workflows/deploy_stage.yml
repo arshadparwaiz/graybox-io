@@ -1,9 +1,9 @@
-name: AIO App CI
+name: AIO App CI - Stage
 
 on:
   push:
     branches:
-      - main
+      - stage
 jobs:
   deploy:
     name: Deploy to Stage
@@ -36,7 +36,7 @@ jobs:
           version: 10.x.x
       - name: Build
         env:
-          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}     
+          AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_STAGE }}
         uses: adobe/aio-apps-action@3.3.0
         with:
           os: ${{ matrix.os }}
