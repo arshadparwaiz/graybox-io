@@ -16,9 +16,8 @@
  ************************************************************************* */
 
 const fetch = require('node-fetch');
-const sharepointAuth = require('./sharepointAuth');
-const appConfig = require('./appConfig');
 const { getAioLogger } = require('./utils');
+const Sharepoint = require('./sharepoint');
 
 const logger = getAioLogger();
 
@@ -29,10 +28,19 @@ const logger = getAioLogger();
  * The user OID is obtained from the SP token.
  */
 class GrayboxUser {
-    constructor({ at }) {
-        this.at = at;
-        this.userDetails = sharepointAuth.getUserDetails(at);
+    userGroupIds = [];
+
+    constructor({ appConfig }) {
+        this.appConfig = appConfig;
+        this.at = this.appConfig.getUserToken();
+        this.sharepoint = new Sharepoint(this.appConfig);
+        this.sharepointAuth = this.sharepoint.getSharepointAuth();
+        this.userDetails = this.sharepointAuth.getUserDetails(this.at);
         this.userOid = this.userDetails?.oid;
+    }
+
+    getUserDetails() {
+        return this.userDetails;
     }
 
     /**
@@ -41,10 +49,10 @@ class GrayboxUser {
      */
     async isInGroups(grpIds) {
         if (!grpIds?.length) return false;
-        const appAt = await sharepointAuth.getAccessToken();
+        const appAt = await this.sharepointAuth.getAccessToken();
         // eslint-disable-next-line max-len
         const numGrps = grpIds.length;
-        let url = appConfig.getConfig().groupCheckUrl || '';
+        let url = this.appConfig.getConfig().groupCheckUrl || '';
         url += `&$filter=id eq '${this.userOid}'`;
         let found = false;
         for (let c = 0; c < numGrps; c += 1) {

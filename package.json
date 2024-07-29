@@ -3,13 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "dependencies": {
-    "@adobe/aio-lib-core-logging": "^2.0.0",
-    "@adobe/aio-sdk": "^3.0.0",
-    "@azure/msal-node": "^1.17.2",
+    "@adobe/aio-lib-core-logging": "^3.0.1",
+    "@adobe/aio-sdk": "^5",
+    "@azure/msal-node": "^2.6.5",
     "milo-md2docx": "^1.8.0",
     "milo-parse-markdown": "^1.0.0",
     "node-fetch": "^2.6.0",
-    "openwhisk": "^3.21.7"
+    "openwhisk": "^3.21.8"
   },
   "devDependencies": {
     "@babel/core": "^7.21.3",
@@ -33,6 +33,6 @@
     "lint:fix": "npm run lint -- --fix"
   },
   "engines": {
-    "node": "^14.18 || ^16.13 || >=18"
+    "node": ">=18"
   }
 }

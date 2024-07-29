@@ -19,14 +19,10 @@ const fetch = require('node-fetch');
 const {
     getAioLogger, handleExtension, isFilePatternMatched, toUTCStr
 } = require('../utils');
-const appConfig = require('../appConfig');
-const { getConfig } = require('../config');
-const {
-    getAuthorizedRequestOption, fetchWithRetry, updateExcelTable,
-    getFileData, getFileUsingDownloadUrl, saveFileSimple
-} = require('../sharepoint');
-const helixUtils = require('../helixUtils');
+const AppConfig = require('../appConfig');
+const HelixUtils = require('../helixUtils');
 const updateDocument = require('../docxUpdater');
+const Sharepoint = require('../sharepoint');
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
@@ -47,22 +43,21 @@ const gbDomainSuffix = '-graybox';
 async function main(params) {
     logger.info('Graybox Promote Worker invoked');
 
-    appConfig.setAppConfig(params);
+    const appConfig = new AppConfig(params);
     const { gbRootFolder, experienceName } = appConfig.getPayload();
     const { projectExcelPath } = appConfig.getPayload();
+    const sharepoint = new Sharepoint(appConfig);
 
     // Update Promote Status
     const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '']];
-    await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
+    await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
 
     logger.info(`GB ROOT FOLDER ::: ${gbRootFolder}`);
     logger.info(`GB EXP NAME ::: ${experienceName}`);
 
     // Get all files in the graybox folder for the specific experience name
     // NOTE: This does not capture content inside the locale/expName folders yet
-    const gbFiles = await findAllFiles(experienceName, appConfig);
-    logger.info(`Files in graybox folder in ${experienceName}`);
-    logger.info(JSON.stringify(gbFiles));
+    const gbFiles = await findAllFiles(experienceName, appConfig, sharepoint);
 
     // create batches to process the data
     const batchArray = [];
@@ -72,12 +67,12 @@ async function main(params) {
     }
 
     // process data in batches
+    const helixUtils = new HelixUtils(appConfig);
     const previewStatuses = [];
     let failedPreviews = [];
-
     const promotedPreviewStatuses = [];
     let promotedFailedPreviews = [];
-    let responsePayload = '';
+    let responsePayload;
     if (helixUtils.canBulkPreview(true)) {
         logger.info('Bulk Previewing Graybox files');
         const paths = [];
@@ -88,25 +83,22 @@ async function main(params) {
 
         failedPreviews = previewStatuses.flatMap((statusArray) => statusArray.filter((status) => !status.success)).map((status) => status.path);
 
-        // Update project excel file with status (sample)
         logger.info('Updating project excel file with status');
-
         const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews(Promote won't happen for these): \n${failedPreviews.join('\n')}` : '';
         const excelValues = [['Preview completed', toUTCStr(new Date()), sFailedPreviews]];
         // Update Preview Status
-        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
+        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
 
         // Get the Helix Admin API Key for the Graybox content tree, needed for accessing (with auth) Images in graybox tree
         const helixAdminApiKey = helixUtils.getAdminApiKey(true);
 
         // Promote Graybox files to the default content tree
-        const { promotes, failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey);
+        const { promotes, failedPromotes } = await promoteFiles(previewStatuses, experienceName, helixAdminApiKey, sharepoint, helixUtils, appConfig);
 
         // Update Promote Status
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
         const promoteExcelValues = [['Promote completed', toUTCStr(new Date()), sFailedPromoteStatuses]];
-
-        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
+        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
 
         // Handle the extensions of promoted files
         const promotedPaths = promotes.map((promote) => handleExtension(promote));
@@ -123,15 +115,15 @@ async function main(params) {
 
         const promotedExcelValues = [['Promoted Files Preview completed', toUTCStr(new Date()), sFailedPromotedPreviews]];
         // Update Promoted Preview Status
-        await updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promotedExcelValues);
+        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promotedExcelValues);
         responsePayload = 'Graybox Promote Worker action completed.';
     } else {
         responsePayload = 'Bulk Preview not enabled for Graybox Content Tree';
     }
     logger.info(responsePayload);
-    return exitAction({
+    return {
         body: responsePayload,
-    });
+    };
 }
 
 /**
@@ -139,9 +131,12 @@ async function main(params) {
  * @param {*} previewStatuses file preview statuses
  * @param {*} experienceName graybox experience name
  * @param {*} helixAdminApiKey helix admin api key for performing Mdast to Docx conversion
+ * @param {*} sharepoint sharepoint instance
+ * @param {*} helixUtils helix utils instance
+ * @param {*} appConfig app config instance
  * @returns JSON array of successful & failed promotes
  */
-async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
+async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey, sharepoint, helixUtils, appConfig) {
     const promotes = [];
     const failedPromotes = [];
     const options = {};
@@ -158,18 +153,19 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
         if (Array.isArray(status)) {
             const promises = status.map(async (stat) => {
                 if (stat.success && stat.mdPath) {
-                    const response = await fetchWithRetry(`${stat.mdPath}`, options);
+                    const response = await sharepoint.fetchWithRetry(`${stat.mdPath}`, options);
                     const content = await response.text();
                     let docx;
-                    const { sp } = await getConfig();
+                    const sp = await appConfig.getSpConfig();
 
                     if (content.includes(experienceName) || content.includes(gbStyleExpression) || content.includes(gbDomainSuffix)) {
                         // Process the Graybox Styles and Links with Mdast to Docx conversion
                         docx = await updateDocument(content, experienceName, helixAdminApiKey);
                         if (docx) {
+                            logger.info(`Docx file generated for ${stat.path}`);
                             // Save file Destination full path with file name and extension
                             const destinationFilePath = `${stat.path.substring(0, stat.path.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${stat.fileName}`;
-                            const saveStatus = await saveFileSimple(docx, destinationFilePath, sp);
+                            const saveStatus = await sharepoint.saveFileSimple(docx, destinationFilePath);
 
                             if (saveStatus?.success) {
                                 promotes.push(destinationFilePath);
@@ -186,9 +182,10 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
                         const copyDestinationFolder = `${stat.path.substring(0, stat.path.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`; // Copy Destination folder path, no file name
                         const destFilePath = `${copyDestinationFolder}/${stat.fileName}`;
 
-                        const { fileDownloadUrl } = await getFileData(copySourceFilePath, true);
-                        const file = await getFileUsingDownloadUrl(fileDownloadUrl);
-                        const saveStatus = await saveFileSimple(file, destFilePath, sp);
+                        // Download the grayboxed file and save it to default content location
+                        const { fileDownloadUrl } = await sharepoint.getFileData(copySourceFilePath, true);
+                        const file = await sharepoint.getFileUsingDownloadUrl(fileDownloadUrl);
+                        const saveStatus = await sharepoint.saveFileSimple(file, destFilePath);
 
                         if (saveStatus?.success) {
                             promotes.push(destFilePath);
@@ -210,19 +207,20 @@ async function promoteFiles(previewStatuses, experienceName, helixAdminApiKey) {
 /**
  * Find all files in the Graybox tree to promote.
  */
-async function findAllFiles(experienceName, appConf) {
-    const { sp } = await getConfig();
-    const options = await getAuthorizedRequestOption({ method: 'GET' });
-    const promoteIgnoreList = appConf.getPromoteIgnorePaths();
+async function findAllFiles(experienceName, appConfig, sharepoint) {
+    const sp = await appConfig.getSpConfig();
+    const options = await sharepoint.getAuthorizedRequestOption({ method: 'GET' });
+    const promoteIgnoreList = appConfig.getPromoteIgnorePaths();
     logger.info(`Promote ignore list: ${promoteIgnoreList}`);
 
     return findAllGrayboxFiles({
         baseURI: sp.api.file.get.gbBaseURI,
         options,
-        gbFolders: appConf.isDraftOnly() ? [`/${experienceName}/drafts`] : [''],
+        gbFolders: appConfig.isDraftOnly() ? [`/${experienceName}/drafts`] : [''],
         promoteIgnoreList,
         downloadBaseURI: sp.api.file.download.baseURI,
-        experienceName
+        experienceName,
+        sharepoint
     });
 }
 
@@ -230,7 +228,7 @@ async function findAllFiles(experienceName, appConf) {
  * Iteratively finds all files under a specified root folder.
  */
 async function findAllGrayboxFiles({
-    baseURI, options, gbFolders, promoteIgnoreList, downloadBaseURI, experienceName
+    baseURI, options, gbFolders, promoteIgnoreList, downloadBaseURI, experienceName, sharepoint
 }) {
     const gbRoot = baseURI.split(':').pop();
     // Regular expression to select the gbRoot and anything before it
@@ -242,7 +240,7 @@ async function findAllGrayboxFiles({
     while (gbFolders.length !== 0) {
         const uri = `${baseURI}${gbFolders.shift()}:/children?$top=${MAX_CHILDREN}`;
         // eslint-disable-next-line no-await-in-loop
-        const res = await fetchWithRetry(uri, options);
+        const res = await sharepoint.fetchWithRetry(uri, options);
         logger.info(`Find all Graybox files URI: ${uri} \nResponse: ${res.ok}`);
         if (res.ok) {
             // eslint-disable-next-line no-await-in-loop
@@ -269,11 +267,6 @@ async function findAllGrayboxFiles({
         }
     }
     return gbFiles;
-}
-
-function exitAction(resp) {
-    appConfig.removePayload();
-    return resp;
 }
 
 exports.main = main;

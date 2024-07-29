@@ -16,10 +16,10 @@
 ************************************************************************* */
 
 const openwhisk = require('openwhisk');
-const action = require('../../actions/graybox/promote');
 const { getAioLogger } = require('../../actions/utils');
 const { validateAction } = require('../../actions/graybox/validateAction');
-const appConfig = require('../../actions/appConfig');
+const AppConfig = require('../../actions/appConfig');
+const { main } = require('../../actions/graybox/promote');
 
 jest.mock('openwhisk');
 jest.mock('../../actions/utils');
@@ -29,7 +29,6 @@ jest.mock('../../actions/appConfig');
 describe('main function', () => {
     let loggerMock;
     let owMock;
-    let params;
 
     beforeEach(() => {
         loggerMock = {
@@ -44,71 +43,101 @@ describe('main function', () => {
             }
         };
         openwhisk.mockReturnValue(owMock);
-        validateAction.mockReturnValue({ code: 200 });
-
-        appConfig.setAppConfig.mockImplementation(() => {
-            appConfig.getConfig.mockReturnValue({
-                grayboxUserGroups: ['group1', 'group2']
-            });
-        });
-
-        params = {
-            // mock params
-        };
     });
 
     afterEach(() => {
         jest.clearAllMocks();
     });
 
-    test('invokes graybox promote action successfully', async () => {
-        appConfig.ignoreUserCheck.mockReturnValue(false);
-        owMock.actions.invoke.mockResolvedValue({
-            result: {
-                code: 200,
+    it('should return a 200 response on successful invocation', async () => {
+        const params = { some: 'params' };
+        const appConfigInstance = {
+            getConfig: jest.fn().mockReturnValue({ grayboxUserGroups: ['group1'] }),
+            ignoreUserCheck: jest.fn().mockReturnValue(false)
+        };
+        AppConfig.mockImplementation(() => appConfigInstance);
 
-            }
-        });
+        validateAction.mockResolvedValue({ code: 200 });
 
-        const result = await action.main(params);
-        const msg = 'Graybox Promote action invoked';
-        expect(loggerMock.info).toHaveBeenCalledWith(msg);
-        expect(validateAction).toHaveBeenCalledWith(params, ['group1', 'group2'], false);
+        owMock.actions.invoke.mockResolvedValue('invoke-result');
+
+        const result = await main(params);
+
+        expect(loggerMock.info).toHaveBeenCalledWith('Graybox Promote action invoked');
+        expect(validateAction).toHaveBeenCalledWith(params, ['group1'], false);
         expect(owMock.actions.invoke).toHaveBeenCalledWith({
             name: 'graybox/promote-worker',
             blocking: false,
             result: false,
             params
         });
-        expect(result).toEqual({ code: 200, payload: msg });
+        expect(loggerMock.info).toHaveBeenCalledWith('invoke-result');
+        expect(result).toEqual({
+            code: 200,
+            payload: 'Graybox Promote action invoked'
+        });
     });
 
-    test('handles validation failure', async () => {
-        validateAction.mockReturnValue({ code: 400 });
+    it('should return validation error response if validation fails', async () => {
+        const params = { some: 'params' };
+        const appConfigInstance = {
+            getConfig: jest.fn().mockReturnValue({ grayboxUserGroups: ['group1'] }),
+            ignoreUserCheck: jest.fn().mockReturnValue(false)
+        };
+        AppConfig.mockImplementation(() => appConfigInstance);
 
-        const result = await action.main(params);
+        validateAction.mockResolvedValue({ code: 400, message: 'Validation failed' });
 
-        expect(loggerMock.info).toHaveBeenCalledWith(expect.stringContaining('Validation failed'));
-        expect(result).toEqual({ code: 400 });
+        const result = await main(params);
+
+        expect(loggerMock.info).toHaveBeenCalledWith('Graybox Promote action invoked');
+        expect(validateAction).toHaveBeenCalledWith(params, ['group1'], false);
+        expect(loggerMock.info).toHaveBeenCalledWith('Validation failed: {"code":400,"message":"Validation failed"}');
+        expect(result).toEqual({ code: 400, message: 'Validation failed' });
     });
 
-    test('handles graybox promote action invocation failure', async () => {
-        const errMsg = 'Failed to invoke graybox promote action';
-        owMock.actions.invoke.mockRejectedValue(new Error(errMsg));
+    it('should return a 500 response if invocation fails', async () => {
+        const params = { some: 'params' };
+        const appConfigInstance = {
+            getConfig: jest.fn().mockReturnValue({ grayboxUserGroups: ['group1'] }),
+            ignoreUserCheck: jest.fn().mockReturnValue(false)
+        };
+        AppConfig.mockImplementation(() => appConfigInstance);
 
-        const result = await action.main(params);
+        validateAction.mockResolvedValue({ code: 200 });
 
-        expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining(errMsg));
-        expect(result).toEqual({ code: 500, payload: errMsg });
+        owMock.actions.invoke.mockRejectedValue(new Error('Invocation error'));
+
+        const result = await main(params);
+
+        expect(loggerMock.info).toHaveBeenCalledWith('Graybox Promote action invoked');
+        expect(validateAction).toHaveBeenCalledWith(params, ['group1'], false);
+        expect(loggerMock.error).toHaveBeenCalledWith('Failed to invoke graybox promote action: Error: Invocation error');
+        expect(result).toEqual({
+            code: 500,
+            payload: 'Failed to invoke graybox promote action'
+        });
     });
 
-    test('handles unknown error', async () => {
-        const errMsg = 'Unknown error occurred';
-        validateAction.mockRejectedValue(new Error(errMsg));
+    it('should return a 500 response on unknown error', async () => {
+        const params = { some: 'params' };
+        const appConfigInstance = {
+            getConfig: jest.fn().mockReturnValue({ grayboxUserGroups: ['group1'] }),
+            ignoreUserCheck: jest.fn().mockReturnValue(false)
+        };
+        AppConfig.mockImplementation(() => appConfigInstance);
 
-        const result = await action.main(params);
+        validateAction.mockImplementation(() => {
+            throw new Error('Unknown error');
+        });
 
-        expect(loggerMock.error).toHaveBeenCalledWith(expect.stringContaining(errMsg));
-        expect(result).toEqual({ code: 500, payload: new Error(errMsg) });
+        const result = await main(params);
+
+        expect(loggerMock.info).toHaveBeenCalledWith('Graybox Promote action invoked');
+        expect(loggerMock.error).toHaveBeenCalledWith('Unknown error occurred: Error: Unknown error');
+        expect(result).toEqual({
+            code: 500,
+            payload: new Error('Unknown error')
+        });
     });
 });
