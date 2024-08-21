@@ -23,7 +23,7 @@ const initFilesWrapper = require('./filesWrapper');
 const logger = getAioLogger();
 
 async function main(params) {
-    logger.info('Graybox Promote Content Action triggered');
+    logger.info('Graybox Copy Content Action triggered');
 
     const appConfig = new AppConfig(params);
     const { gbRootFolder, experienceName, projectExcelPath } = appConfig.getPayload();
@@ -36,7 +36,7 @@ async function main(params) {
     let promotes = [];
     const failedPromotes = [];
 
-    logger.info('In Promote Content Worker, Processing Promote Content');
+    logger.info('In Copy Worker, Processing Copy Content');
 
     // Read the Batch Status in the current project's "batch_status.json" file
     const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`);
@@ -53,33 +53,33 @@ async function main(params) {
         promotes = promotes.concat(promotedPathsJson[batchName]);
     }
 
-    const promoteBatchesJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/promote_batches.json`);
-    logger.info(`In Promote-sched Promote Batches Json: ${JSON.stringify(promoteBatchesJson)}`);
+    const copyBatchesJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/copy_batches.json`);
 
-    const promoteFilePaths = promoteBatchesJson[batchName].files || [];
+    const copyBatchJson = copyBatchesJson[batchName] || {};
 
-    logger.info(`In Promote Content Worker, promoteFilePaths: ${JSON.stringify(promoteFilePaths)}`);
-    // Process the Promote Content
-    // Collect all promises from the forEach loop
-    const promotePromises = promoteFilePaths.map(async (promoteFilePath) => {
-        const promoteDocx = await filesWrapper.readFileIntoBuffer(`graybox_promote${gbRootFolder}/${experienceName}/docx${promoteFilePath}`);
-        if (promoteDocx) {
-            const saveStatus = await sharepoint.saveFileSimple(promoteDocx, promoteFilePath);
-            logger.info(`In Promote Content Worker, Save Status of ${promoteFilePath}: ${JSON.stringify(saveStatus)}`);
+    logger.info(`In Copy Worker, Copy File Paths: ${JSON.stringify(copyBatchJson)}`);
 
-            if (saveStatus?.success) {
-                promotes.push(promoteFilePath);
-            } else if (saveStatus?.errorMsg?.includes('File is locked')) {
-                failedPromotes.push(`${promoteFilePath} (locked file)`);
-            } else {
-                failedPromotes.push(promoteFilePath);
-            }
+    // Process the Copy Content
+    const copyFilePathsJson = copyBatchJson.files || [];
+    const copyPromises = copyFilePathsJson.map(async (copyPathsEntry) => {
+        // Download the grayboxed file and save it to default content location
+        const { fileDownloadUrl } = await sharepoint.getFileData(copyPathsEntry.copySourceFilePath, true);
+        const file = await sharepoint.getFileUsingDownloadUrl(fileDownloadUrl);
+        const saveStatus = await sharepoint.saveFileSimple(file, copyPathsEntry.copyDestFilePath);
+
+        if (saveStatus?.success) {
+            promotes.push(copyPathsEntry.copyDestFilePath);
+        } else if (saveStatus?.errorMsg?.includes('File is locked')) {
+            failedPromotes.push(`${copyPathsEntry.copyDestFilePath} (locked file)`);
+        } else {
+            failedPromotes.push(copyPathsEntry.copyDestFilePath);
         }
     });
 
-    // Wait for all the promises to resolve
-    await Promise.all(promotePromises);
+    // Wait for all copy operations to complete
+    await Promise.all(copyPromises);
 
+    logger.info(`In Copy Worker, Promotes: ${JSON.stringify(promotes)}`);
     // Update the Promoted Paths in the current project's "promoted_paths.json" file
     if (promotes.length > 0) {
         promotedPathsJson[batchName] = promotes;
@@ -98,27 +98,24 @@ async function main(params) {
     // Write the updated batch_status.json file
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
 
-    // Update the Promote Batch Status in the current project's "promote_batches.json" file
-    promoteBatchesJson[batchName].status = 'promoted';
+    // Update the Copy Batch Status in the current project's "copy_batches.json" file
+    copyBatchesJson[batchName].status = 'promoted';
     // Write the promote batches JSON file
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
 
     // Update the Project Excel with the Promote Status
     try {
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
-        const promoteExcelValues = [[`Step 3 of 5: Promote Docx completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses]];
+        const promoteExcelValues = [[`Step 4 of 5: Copy Docx completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses]];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
     } catch (err) {
-        logger.error(`Error Occured while updating Excel during Graybox Promote: ${err}`);
+        logger.error(`Error Occured while updating Excel during Graybox Promote Copy: ${err}`);
     }
 
     // Update the Project Status in JSON files
     updateProjectStatus(gbRootFolder, experienceName, filesWrapper);
 
-    logger.info(`In Promote Content Worker, Promotes: ${JSON.stringify(promotes)}`);
-    logger.info(`In Promote Content Worker, Failed Promotes: ${JSON.stringify(failedPromotes)}`);
-
-    responsePayload = 'Promote Content Worker finished promoting content';
+    responsePayload = 'Copy Worker finished promoting content';
     logger.info(responsePayload);
     return exitAction({
         body: responsePayload,
@@ -139,7 +136,6 @@ async function updateProjectStatus(gbRootFolder, experienceName, filesWrapper) {
 
     // Update the Project Status in the current project's "status.json" file
     projectStatusJson.status = 'promoted';
-    logger.info(`In Promote-content-worker After Processing Promote, Project Status Json: ${JSON.stringify(projectStatusJson)}`);
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
 
     // Update the Project Status in the parent "project_queue.json" file
@@ -148,7 +144,6 @@ async function updateProjectStatus(gbRootFolder, experienceName, filesWrapper) {
         // Replace the object at the found index
         projectQueue[index].status = 'promoted';
     }
-    logger.info(`In Promote-content-worker After Processing Promote, Project Queue Json: ${JSON.stringify(projectQueue)}`);
     await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
 }
 

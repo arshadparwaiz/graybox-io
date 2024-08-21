@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@adobe/aio-lib-core-logging": "^3.0.1",
+    "@adobe/aio-lib-files": "^4.0.1",
     "@adobe/aio-sdk": "^5",
     "@azure/msal-node": "^2.6.5",
     "milo-md2docx": "^1.8.0",
