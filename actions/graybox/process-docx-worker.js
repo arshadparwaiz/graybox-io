@@ -34,7 +34,7 @@ const BATCH_REQUEST_PROMOTE = 200;
 const logger = getAioLogger();
 
 async function main(params) {
-    logger.info('Graybox Process Docx Action triggered');
+    logger.info('Graybox Process Content Action triggered');
 
     const appConfig = new AppConfig(params);
     const { gbRootFolder, experienceName, projectExcelPath } = appConfig.getPayload();
@@ -50,7 +50,6 @@ async function main(params) {
 
     const previewStatuses = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/preview_status.json`);
 
-    logger.info(`In Process-doc-worker, previewStatuses: ${JSON.stringify(previewStatuses)}`);
     if (!previewStatuses) {
         responsePayload = 'No preview statuses found';
         logger.info(responsePayload);
@@ -59,6 +58,7 @@ async function main(params) {
             statusCode: 200
         });
     }
+    logger.info(`In Process-doc-worker, previewStatuses: ${JSON.stringify(previewStatuses)}`);
     const processFilesParams = {
         previewStatuses,
         experienceName,
@@ -99,6 +99,14 @@ async function processFiles({
     // Read the Project Status in the current project's "status.json" file
     const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
 
+    const toBeStatus = 'process_content_in_progress';
+    // Update the In Progress Status in the current project's "status.json" file
+    projectStatusJson.status = toBeStatus;
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
+
+    // Update the Project Status in the parent "project_queue.json" file
+    await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
+
     // Read the Batch Status in the current project's "batch_status.json" file
     const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`);
 
@@ -110,30 +118,44 @@ async function processFiles({
     const processDocxErrors = [];
 
     // iterate through preview statuses, generate docx files and create promote & copy batches
-    Object.keys(previewStatuses).forEach(async (batchName) => {
+    const batchNames = Object.keys(previewStatuses).flat();
+    const allProcessingPromises = batchNames.map(async (batchName, index, array) => {
         const batchPreviewStatuses = previewStatuses[batchName];
 
         // Check if Step 2 finished, do the Step 3, if the batch status is 'initial_preview_done' then process the batch
         if (batchStatusJson[batchName] === 'initial_preview_done') {
-            const allPreviewPromises = batchPreviewStatuses.map(async (status) => {
+            for (let prevIndex = 0; prevIndex < batchPreviewStatuses.length; prevIndex += 1) {
+                const status = batchPreviewStatuses[prevIndex];
                 if (status.success && status.mdPath) { // If the file is successfully initial previewed and has a mdPath then process the file
+                    // eslint-disable-next-line no-await-in-loop
                     const response = await sharepoint.fetchWithRetry(`${status.mdPath}`, options);
-                    const content = await response.text();
+                    // eslint-disable-next-line no-await-in-loop
+                    let content = await response.text();
                     let docx;
+
+                    // Sample Image URL [image0]: https://main--bacom-graybox--adobecom.hlx.page/media_115d4450fd3ef2f1559f63e25d7e299eaba9b79ee.jpeg#width=2560&height=1600
+                    const imageRegex = /\[image.*\]: https:\/\/.*\/media_.*\.(?:jpg|jpeg|png|gif|bmp|webp)#width=\d+&height=\d+/g;
+                    const imageMatches = content.match(imageRegex);
+
+                    // Delete all the images from the content, these get added only in .md file and don't exist in the docx file
+                    if (imageMatches) {
+                        imageMatches.forEach((match) => {
+                            // Remove the image matches from content
+                            content = content.replace(match, '');
+                        });
+                    }
 
                     if (content.includes(experienceName) || content.includes(gbStyleExpression) || content.includes(gbDomainSuffix)) {
                         // Process the Graybox Styles and Links with Mdast to Docx conversion
+                        // eslint-disable-next-line no-await-in-loop
                         docx = await updateDocument(content, experienceName, helixAdminApiKey);
                         if (docx) {
                             const destinationFilePath = `${status.path.substring(0, status.path.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${status.fileName}`;
                             const docxFileStream = Readable.from(docx);
 
                             // Write the processed documents to the AIO folder for docx files
+                            // eslint-disable-next-line no-await-in-loop
                             await filesWrapper.writeFileFromStream(`graybox_promote${gbRootFolder}/${experienceName}/docx${destinationFilePath}`, docxFileStream);
-
-                            // Create Promote Batches
-                            // const promoteBatchName = `batch_${promoteBatchCount + 1}`;
-                            // Don't create new batch names, use the same batch names created in the start before initial preview
 
                             let promoteBatchJson = promoteBatchesJson[batchName];
                             if (!promoteBatchJson) {
@@ -153,6 +175,7 @@ async function processFiles({
                             }
 
                             // Write the promote batches JSON file
+                            // eslint-disable-next-line no-await-in-loop
                             await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
                         } else {
                             processDocxErrors.push(`Error processing docx for ${status.fileName}`);
@@ -162,6 +185,7 @@ async function processFiles({
                         batchStatusJson[batchName] = 'processed';
 
                         // Update the Project Status & Batch Status in the current project's "status.json" & updated batch_status.json file respectively
+                        // eslint-disable-next-line no-await-in-loop
                         await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
                     } else {
                         // Copy Source full path with file name and extension
@@ -170,8 +194,6 @@ async function processFiles({
                         const copyDestinationFolder = `${status.path.substring(0, status.path.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`;
                         const copyDestFilePath = `${copyDestinationFolder}/${status.fileName}`;
 
-                        // Create Copy Batches
-                        // const copyBatchName = `batch_${copyBatchCount + 1}`;
                         // Don't create new batch names, use the same batch names created in the start before initial preview
                         let copyBatchJson = copyBatchesJson[batchName];
                         if (!copyBatchJson) {
@@ -188,37 +210,43 @@ async function processFiles({
                         }
                         logger.info(`In Process-doc-worker Copy Batch JSON after push: ${JSON.stringify(copyBatchesJson)}`);
                         // Write the copy batches JSON file
+                        // eslint-disable-next-line no-await-in-loop
                         await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
 
                         // Update each Batch Status in the current project's "batch_status.json" file
                         batchStatusJson[batchName] = 'processed';
                         // Update the Project Status & Batch Status in the current project's "status.json" & updated batch_status.json file respectively
+                        // eslint-disable-next-line no-await-in-loop
                         await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
                     }
                 }
-            });
-            await Promise.all(allPreviewPromises); // await all async functions in the array are executed
+            }
         }
     });
 
-    // Write the processDocxErrors to the AIO Files
-    if (processDocxErrors.length > 0) {
-        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/process_docx_errors.json`, processDocxErrors);
-    }
+    await Promise.all(allProcessingPromises); // await all async functions in the array are executed
+    await updateStatuses(promoteBatchesJson, copyBatchesJson, gbRootFolder, experienceName, filesWrapper, processDocxErrors, sharepoint, projectExcelPath);
+}
 
-    // Update the Project Status in the current project's "status.json" file
-    projectStatusJson.status = 'processed';
+async function updateStatuses(promoteBatchesJson, copyBatchesJson, gbRootFolder, experienceName, filesWrapper, processContentErrors, sharepoint, projectExcelPath) {
+    // Write the copy batches JSON file
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
+    // Update the Project Status in JSON files
+    updateProjectStatus(gbRootFolder, experienceName, filesWrapper);
+
+    // Write the processDocxErrors to the AIO Files
+    if (processContentErrors.length > 0) {
+        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/process_content_errors.json`, processContentErrors);
+    }
 
     // Update the Project Excel with the Promote Status
     try {
-        const promoteExcelValues = [['Step 2 of 5: Process Docx completed', toUTCStr(new Date()), '']];
+        const promoteExcelValues = [['Step 2 of 5: Processing files for Graybox blocks, styles and links completed', toUTCStr(new Date()), '']];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
     } catch (err) {
-        logger.error(`Error Occured while updating Excel during Graybox Process Docx Step: ${err}`);
+        logger.error(`Error Occured while updating Excel during Graybox Process Content Step: ${err}`);
     }
-
-    // Update the Project Status in JSON files
-    updateProjectStatus(batchStatusJson, projectStatusJson, gbRootFolder, experienceName, filesWrapper);
 }
 
 /**
@@ -228,19 +256,27 @@ async function processFiles({
  * @param {*} filesWrapper filesWrapper object
  * @returns updated project status
  */
-async function updateProjectStatus(batchStatusJson, projectStatusJson, gbRootFolder, experienceName, filesWrapper) {
-    const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
-    // Write the Project Status in the current project's "status.json" file
+async function updateProjectStatus(gbRootFolder, experienceName, filesWrapper) {
+    // Update the Project Status in the current project's "status.json" file
+    const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
+    const toBeStatus = 'processed';
+    projectStatusJson.status = toBeStatus;
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
 
     // Update the Project Status in the parent "project_queue.json" file
+    const projectQueue = await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
+    logger.info(`In process-content-worker After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueue)}`);
+}
+
+async function changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus) {
+    const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
     const index = projectQueue.findIndex((obj) => obj.projectPath === `${gbRootFolder}/${experienceName}`);
     if (index !== -1) {
         // Replace the object at the found index
-        projectQueue[index].status = 'processed';
+        projectQueue[index].status = toBeStatus;
+        await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
     }
-    logger.info(`In Process-docx-worker After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueue)}`);
-    await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
+    return projectQueue;
 }
 
 function exitAction(resp) {

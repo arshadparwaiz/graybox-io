@@ -40,29 +40,50 @@ async function main(params) {
         if (projectEntry && projectEntry.projectPath) {
             const project = projectEntry.projectPath;
             const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
-            logger.info(`In Copy-sched Projects Json: ${JSON.stringify(projectStatusJson)}`);
+            logger.info(`In Copy-sched Project Status Json: ${JSON.stringify(projectStatusJson)}`);
 
             // Read the Batch Status in the current project's "batch_status.json" file
             const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status.json`);
+            logger.info(`In Copy Sched, batchStatusJson: ${JSON.stringify(batchStatusJson)}`);
 
             const copyBatchesJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/copy_batches.json`);
-            // copy all params from json into the params object
-            const inputParams = projectStatusJson?.params;
-            Object.keys(inputParams).forEach((key) => {
-                params[key] = inputParams[key];
-            });
+            logger.info(`In Copy-sched Copy Batches Json: ${JSON.stringify(copyBatchesJson)}`);
 
-            logger.info(`In Copy-sched copyBatchesJson: ${JSON.stringify(copyBatchesJson)}`);
-            // Find the first batch where status is 'processed'
-            const batchEntry = Object.entries(copyBatchesJson)
-                .find(([batchName, copyBatchJson]) => copyBatchJson.status === 'processed');
-            const copyBatchName = batchEntry[0]; // Getting the key i.e. project path from the JSON entry, batchEntry[1] is the value
+            // Find if any batch is in 'copy_in_progress' status, if yes then don't trigger another copy action for another "processed" batch
+            const copyOrPromoteInProgressBatch = Object.entries(batchStatusJson)
+                .find(([batchName, copyBatchJson]) => (copyBatchJson.status === 'copy_in_progress' || copyBatchJson.status === 'promote_in_progress'));
 
-            if (batchStatusJson[copyBatchName] === 'processed') {
+            if (copyOrPromoteInProgressBatch && Array.isArray(copyOrPromoteInProgressBatch) && copyOrPromoteInProgressBatch.length > 0) {
+                responsePayload = `Promote or Copy Action already in progress for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
+                return {
+                    code: 200,
+                    payload: responsePayload
+                };
+            }
+
+            // Find the First Batch where status is 'processed', to promote one batch at a time
+            const processedBatchName = Object.keys(copyBatchesJson)
+                .find((batchName) => copyBatchesJson[batchName].status === 'processed');
+            // If no batch is found with status 'processed then nothing to promote', return
+            if (!processedBatchName) {
+                responsePayload = 'No Copy Batches found with status "processed"';
+                return {
+                    code: 200,
+                    payload: responsePayload
+                };
+            }
+
+            if (copyBatchesJson[processedBatchName].status === 'processed') {
+                // copy all params from json into the params object
+                const inputParams = projectStatusJson?.params;
+                Object.keys(inputParams).forEach((key) => {
+                    params[key] = inputParams[key];
+                });
                 // Set the Project & Batch Name in params for the Copy Content Worker Action to read and process
                 params.project = project;
-                params.batchName = copyBatchName;
+                params.batchName = processedBatchName;
 
+                logger.info(`In Copy-sched, Invoking Copy Content Worker for Batch: ${processedBatchName} of Project: ${project}`);
                 try {
                     return ow.actions.invoke({
                         name: 'graybox/copy-worker',

@@ -28,7 +28,7 @@ const BATCH_REQUEST_PREVIEW = 200;
 // const BATCH_REQUEST_PREVIEW = 1; // TODO remove this line and uncomment the above line after testing
 
 /**
- *  - Bulk Preview docx files
+ *  - Bulk Preview Graybox files
  *  - GET markdown files using preview-url.md
  *  - Process markdown - process MDAST by cleaning it up
  *  - Generate updated Docx file using md2docx lib
@@ -76,13 +76,19 @@ async function main(params) {
     // Promote Errors JSON
     const promoteErrorsJson = [];
 
+    // Copy Batches JSON
+    const copyBatchesJson = {};
+
+    // Promote Batches JSON
+    const promoteBatchesJson = {};
+
     // create batches to process the data
     const gbFilesBatchArray = [];
     const writeBatchJsonPromises = [];
-    for (let i = 0; i < gbFiles.length; i += BATCH_REQUEST_PREVIEW) {
+    for (let i = 0, batchCounter = 1; i < gbFiles.length; i += BATCH_REQUEST_PREVIEW, batchCounter += 1) {
         const arrayChunk = gbFiles.slice(i, i + BATCH_REQUEST_PREVIEW);
         gbFilesBatchArray.push(arrayChunk);
-        const batchName = `batch_${i + 1}`;
+        const batchName = `batch_${batchCounter}`;
         batchStatusJson[`${batchName}`] = 'initiated';
 
         // Each Files Batch is written to a batch_n.json file
@@ -145,6 +151,8 @@ async function main(params) {
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/preview_errors.json`, projectPreviewErrorsJson);
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promoted_paths.json`, promotedPathsJson);
     await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_errors.json`, promoteErrorsJson);
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
 
     // read Graybox Project Json from AIO Files
     const projectQueueJson = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
@@ -156,7 +164,7 @@ async function main(params) {
 
     // process data in batches
     let responsePayload;
-    responsePayload = 'Graybox Promote Worker action completed.';
+    responsePayload = 'Graybox Initiate Promote Worker action completed.';
     logger.info(responsePayload);
     return {
         body: responsePayload,

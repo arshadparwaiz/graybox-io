@@ -31,16 +31,33 @@ async function main(params) {
     try {
         const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
         logger.info(`From Preview-sched Project Queue Json: ${JSON.stringify(projectQueue)}`);
+        if (!projectQueue) {
+            responsePayload = 'No projects in the queue';
+            logger.info(responsePayload);
+            return {
+                code: 200,
+                payload: responsePayload
+            };
+        }
 
         // iterate the JSON array projects and extract the project_path where status is 'initiated'
-        const ongoingInitiatedProjectPaths = [];
+        const toBePreviewedProjectPaths = [];
         projectQueue.forEach((project) => {
             if (project.status === 'initiated' || project.status === 'promoted') {
-                ongoingInitiatedProjectPaths.push(project.projectPath);
+                toBePreviewedProjectPaths.push(project.projectPath);
             }
         });
 
-        ongoingInitiatedProjectPaths.forEach(async (project) => {
+        if (!toBePreviewedProjectPaths || toBePreviewedProjectPaths.length === 0) {
+            responsePayload = 'No projects in the queue with status initiated';
+            logger.info(responsePayload);
+            return {
+                code: 200,
+                payload: responsePayload
+            };
+        }
+
+        toBePreviewedProjectPaths.forEach(async (project) => {
             const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
 
             // copy all params from json into the params object

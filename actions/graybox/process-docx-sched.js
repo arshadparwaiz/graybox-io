@@ -23,21 +23,39 @@ const initFilesWrapper = require('./filesWrapper');
 async function main(params) {
     const logger = getAioLogger();
     const ow = openwhisk();
-    let responsePayload = 'Graybox Process Docx Scheduler invoked';
+    let responsePayload = 'Graybox Process Content Scheduler invoked';
     logger.info(responsePayload);
 
     const filesWrapper = await initFilesWrapper(logger);
 
     try {
         const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
-        logger.info(`In Process-docx-sched Project Queue Json: ${JSON.stringify(projectQueue)}`);
+        logger.info(`In Process-content-sched Project Queue Json: ${JSON.stringify(projectQueue)}`);
+
+        if (!projectQueue) {
+            responsePayload = 'No projects in the queue';
+            logger.info(responsePayload);
+            return {
+                code: 200,
+                payload: responsePayload
+            };
+        }
 
         // iterate the JSON array projects and extract the project_path where status is 'initial_preview_done'
-        const ongoingPreviewedProjects = projectQueue
+        const toBeProcessedProjects = projectQueue
             .filter((project) => project.status === 'initial_preview_done')
             .map((project) => project.projectPath);
 
-        ongoingPreviewedProjects.forEach(async (project) => {
+        if (!toBeProcessedProjects || toBeProcessedProjects.length === 0) {
+            responsePayload = 'No projects in the queue with status initial_preview_done';
+            logger.info(responsePayload);
+            return {
+                code: 200,
+                payload: responsePayload
+            };
+        }
+
+        toBeProcessedProjects.forEach(async (project) => {
             const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
 
             // copy all params from json into the params object
@@ -59,7 +77,7 @@ async function main(params) {
                         payload: responsePayload
                     };
                 }).catch(async (err) => {
-                    responsePayload = 'Failed to invoke graybox process docx action';
+                    responsePayload = 'Failed to invoke graybox process content action';
                     logger.error(`${responsePayload}: ${err}`);
                     return {
                         code: 500,
