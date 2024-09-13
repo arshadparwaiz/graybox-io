@@ -25,7 +25,34 @@ application:
             web: 'yes'
             runtime: nodejs:18
             inputs:
-              LOG_LEVEL: debug  
+              LOG_LEVEL: debug
+          initiate-promote-worker:
+            function: actions/graybox/initiate-promote-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          preview-worker:
+            function: actions/graybox/preview-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          process-docx-worker:
+            function: actions/graybox/process-docx-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
           promote-worker:
             function: actions/graybox/promote-worker.js
             web: 'no'
@@ -35,3 +62,78 @@ application:
             limits:
               timeout: 3600000
               memorySize: 2048
+          copy-worker:
+            function: actions/graybox/copy-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          preview-sched:
+            function: actions/graybox/preview-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true              
+          process-docx-sched:
+            function: actions/graybox/process-docx-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true              
+          promote-sched:
+            function: actions/graybox/promote-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true              
+          copy-sched:
+            function: actions/graybox/copy-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true              
+        triggers:
+          everyMin:
+            feed: /whisk.system/alarms/interval
+            inputs:
+              minutes: 1
+        rules:
+          everyMinRule:
+            trigger: everyMin
+            action: preview-sched
+          everyMinProcessDocxRule:
+            trigger: everyMin
+            action: process-docx-sched
+          everyMinPromoteDocxRule:
+            trigger: everyMin
+            action: promote-sched
+          everyMinCopyDocxRule:
+            trigger: everyMin
+            action: copy-sched

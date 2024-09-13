@@ -29,6 +29,7 @@ const TOO_MANY_REQUESTS = '429';
 const LOG_RESP_HEADER = false;
 let nextCallAfter = 0;
 const itemIdMap = {};
+const logger = getAioLogger();
 
 class Sharepoint {
     constructor(appConfig) {
@@ -194,8 +195,6 @@ class Sharepoint {
     }
 
     async saveFileSimple(file, dest, isGraybox) {
-        const logger = getAioLogger();
-
         try {
             const folder = this.getFolderFromPath(dest);
             const filename = this.getFileNameFromPath(dest);
@@ -286,7 +285,6 @@ class Sharepoint {
 
     logHeaders(response) {
         if (!this.getLogRespHeader()) return;
-        const logger = getAioLogger();
         const hdrStr = this.getHeadersStr(response);
         const logStr = `Status is ${response.status} with headers ${hdrStr}`;
 

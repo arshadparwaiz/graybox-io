@@ -36,7 +36,7 @@ async function main(params) {
         }
 
         return ow.actions.invoke({
-            name: 'graybox/promote-worker',
+            name: 'graybox/initiate-promote-worker',
             blocking: false,
             result: false,
             params
