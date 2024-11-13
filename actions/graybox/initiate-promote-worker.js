@@ -47,9 +47,13 @@ async function main(params) {
     const filesWrapper = await initFilesWrapper(logger);
     const sharepoint = new Sharepoint(appConfig);
 
-    // Update Promote Status
-    const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '']];
-    await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
+    try {
+        // Update Promote Status
+        const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '']];
+        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
+    } catch (err) {
+        logger.error(`Error Occured while updating Excel during Graybox Initiate Promote: ${err}`);
+    }
 
     logger.info(`GB ROOT FOLDER ::: ${gbRootFolder}`);
     logger.info(`GB EXP NAME ::: ${experienceName}`);

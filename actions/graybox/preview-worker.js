@@ -65,7 +65,11 @@ async function main(params) {
                 const batchResults = {};
                 // Read the Batch JSON file into an array
                 const i = 0; // Start with counter as 0
-                await iterateAndPreviewBatchJson(i, batchResults, noofbatches, batchStatusJson, true);
+                const isGraybox = true;
+                await iterateAndPreviewBatchJson(i, batchResults, noofbatches, batchStatusJson, isGraybox);
+
+                // Reattempt Preview for failed preview paths
+                await retryFailedPreviews(isGraybox);
             } else if (projectStatusJson.status === 'promoted') {
                 // Update the In Progress Status in the current project's "status.json" file
                 projectStatusJson.status = 'final_preview_in_progress';
@@ -74,7 +78,10 @@ async function main(params) {
                 // Perform Final Preview
                 const promotedPathsJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/promoted_paths.json`);
                 const i = 0; // Start with counter as 0
-                await iterateAndPreviewBatchJson(i, promotedPathsJson, noofbatches, batchStatusJson, false);
+                const isGraybox = false;
+                await iterateAndPreviewBatchJson(i, promotedPathsJson, noofbatches, batchStatusJson, isGraybox);
+                // Reattempt Preview for failed preview paths
+                await retryFailedPreviews(isGraybox);
             }
 
             // Write the updated batch_status.json file
@@ -118,7 +125,8 @@ async function main(params) {
                 logger.info('Updating project excel file with status');
                 let excelValues = '';
                 if (projectStatusJson.status === 'initial_preview_in_progress') {
-                    const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews(Promote won't happen for these): \n${failedPreviews.join('\n')}` : '';
+                    const sFailedPreviews = failedPreviews.length > 0 ?
+                        `Failed Previews(Please preview these files individually or with Milo Bulk Preview tool, and trigger Promote): \n${failedPreviews.join('\n')}` : '';
                     excelValues = [['Step 1 of 5: Initial Preview of Graybox completed', toUTCStr(new Date()), sFailedPreviews]];
                 } else if (projectStatusJson.status === 'final_preview_in_progress') {
                     const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews: \n${failedPreviews.join('\n')}` : '';
@@ -141,6 +149,43 @@ async function main(params) {
         body: responsePayload,
         statusCode: 200
     });
+
+    async function retryFailedPreviews(isGraybox) {
+        try {
+            const failedPreviewPathToBatchMap = {};
+            // Find the failed previews from the previewStatuses object and re-attempt preview for them
+            // PreviewStatuses is an object with keys(batchNames) mapping to arrays(previewStauses)
+            // Create a fresh object subset of previewStatuses with failed preview statuses
+            Object.keys(previewStatuses).forEach((batch) => {
+                previewStatuses[batch].forEach((status) => {
+                    if (!status.success) {
+                        failedPreviewPathToBatchMap[status.path] = batch;
+                    }
+                });
+            });
+
+            const failedPreviewPaths = Object.keys(failedPreviewPathToBatchMap);
+
+            // Re-attempt preview for failed previews
+            const reAttemptPreviewStatuses = await helixUtils.bulkPreview(failedPreviewPaths, helixUtils.getOperations().PREVIEW, experienceName, isGraybox);
+
+            // Update the previewStatuses object with the re-attempted preview statuses
+            reAttemptPreviewStatuses.forEach((reattemptedStatus) => {
+                // Extract the batch name for a specific path
+                const batch = failedPreviewPathToBatchMap[reattemptedStatus.path];
+
+                // Find the batch that contains the reattempted status path
+                previewStatuses[batch].forEach((status, index) => {
+                    if (status.path === reattemptedStatus.path) {
+                        // Update the status in the corresponding batch
+                        previewStatuses[batch][index] = reattemptedStatus;
+                    }
+                });
+            });
+        } catch (err) {
+            logger.error(`Error Occured while Reattempting Failed Previews: ${err}`);
+        }
+    }
 
     /**
      * Iterate over the Batch JSON files, read those into an array and perform Bulk Preview
@@ -185,6 +230,7 @@ async function main(params) {
         if (batchJson) {
             batchJson.forEach((gbFile) => paths.push(handleExtension(gbFile)));
 
+            logger.info(`paths before initial preview :::: ${paths}`);
             // Perform Bulk Preview of a Batch of Graybox files
             if (isGraybox) {
                 previewStatuses[batchName] = await helixUtils.bulkPreview(paths, helixUtils.getOperations().PREVIEW, experienceName, isGraybox);
