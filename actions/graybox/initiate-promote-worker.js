@@ -139,12 +139,12 @@ async function main(params) {
         projectQueue.push(newProject);
     }
 
-    logger.info(`In Initiate Preview Worker, Project Queue Json: ${JSON.stringify(projectQueue)}`);
+    logger.info(`In Initiate Promote Worker, Project Queue Json: ${JSON.stringify(projectQueue)}`);
 
     // Create Project Status JSON
     const projectStatusJson = { status: 'initiated', params: inputParams };
 
-    logger.info(`In Initiate Preview Worker, projectStatusJson: ${JSON.stringify(projectStatusJson)}`);
+    logger.info(`In Initiate Promote Worker, projectStatusJson: ${JSON.stringify(projectStatusJson)}`);
 
     // write to JSONs to AIO Files for Projects Queue and Project Status
     await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
@@ -160,11 +160,11 @@ async function main(params) {
 
     // read Graybox Project Json from AIO Files
     const projectQueueJson = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
-    logger.info(`Project Queue Json: ${JSON.stringify(projectQueueJson)}`);
+    logger.info(`In Initiate Promote Worker, Project Queue Json: ${JSON.stringify(projectQueueJson)}`);
     const statusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
-    logger.info(`Project Status Json: ${JSON.stringify(statusJson)}`);
+    logger.info(`In Initiate Promote Worker, Project Status Json: ${JSON.stringify(statusJson)}`);
     const projectBatchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`);
-    logger.info(`Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
+    logger.info(`In Initiate Promote Worker, Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
 
     // process data in batches
     let responsePayload;
@@ -221,7 +221,6 @@ async function findAllGrayboxFiles({
             for (let di = 0; di < driveItems?.length; di += 1) {
                 const item = driveItems[di];
                 const itemPath = `${item.parentReference.path.replace(pPathRegExp, '')}/${item.name}`;
-                logger.info(`${itemPath} ::: ${pathsToSelectRegExp.test(itemPath)}`);
                 if (!isFilePatternMatched(itemPath, promoteIgnoreList)) {
                     if (item.folder) {
                         // it is a folder
