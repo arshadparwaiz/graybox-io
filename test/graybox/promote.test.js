@@ -66,7 +66,7 @@ describe('main function', () => {
         expect(loggerMock.info).toHaveBeenCalledWith('Graybox Promote action invoked');
         expect(validateAction).toHaveBeenCalledWith(params, ['group1'], false);
         expect(owMock.actions.invoke).toHaveBeenCalledWith({
-            name: 'graybox/promote-worker',
+            name: 'graybox/initiate-promote-worker',
             blocking: false,
             result: false,
             params

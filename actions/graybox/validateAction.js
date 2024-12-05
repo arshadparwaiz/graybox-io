@@ -17,6 +17,7 @@
 
 const AppConfig = require('../appConfig');
 const GrayboxUser = require('../grayboxUser');
+const { getAioLogger } = require('../utils');
 
 function isGrayboxParamsValid(params) {
     const {
@@ -41,6 +42,7 @@ async function isUserAuthorized(params, grpIds) {
     const appConfig = new AppConfig(params);
     const grayboxUser = new GrayboxUser({ appConfig });
     const found = await grayboxUser.isInGroups(grpIds);
+    getAioLogger().info(`User is authorized: ${found}`);
     return found;
 }
 

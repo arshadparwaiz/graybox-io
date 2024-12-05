@@ -24,7 +24,7 @@ const hostname = Config.get('cna.hostname') || 'adobeioruntime.net';
 const runtimePackage = 'graybox';
 const actionUrl = `https://${namespace}.${hostname}/api/v1/web/${runtimePackage}/promote`;
 
-test('returns a 204 as promote calls async promote-worker action', async () => {
+test('returns a 204 as promote calls async initiate-promote-worker action', async () => {
     const res = await fetch(actionUrl);
     expect(res).toEqual(expect.objectContaining({
         status: 204
