@@ -71,6 +71,12 @@ application:
             limits:
               timeout: 3600000
               memorySize: 2048
+          pause-project-in-queue:
+            function: actions/graybox/pause-project-in-queue.js
+            web: 'yes'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
           preview-sched:
             function: actions/graybox/preview-sched.js
             web: 'no'
