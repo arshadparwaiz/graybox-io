@@ -49,9 +49,9 @@ async function main(params) {
             try {
                 let excelValues = '';
                 if (projectStatusJson.status === 'initiated') {
-                    excelValues = [['Initial Preview of Graybox completed', toUTCStr(new Date()), `Initial Preview started for '${experienceName}' experience`]];
+                    excelValues = [[`Initial Preview started for '${experienceName}' experience`, toUTCStr(new Date()), '']];
                 } else if (projectStatusJson.status === 'promoted') {
-                    excelValues = [['Final Preview of Promoted Content completed', toUTCStr(new Date()), `Final Preview started for promoted content of '${experienceName}' experience`]];
+                    excelValues = [[`Final Preview started for promoted content of '${experienceName}' experience`, toUTCStr(new Date()), '']];
                 }
                 // Update Preview Status
                 await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);

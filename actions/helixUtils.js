@@ -84,7 +84,7 @@ class HelixUtils {
             const repo = this.getRepo(isGraybox);
             const urlInfo = this.appConfig.getUrlInfo();
             let experienceName = grayboxExperienceName || '';
-            experienceName = experienceName ? `${experienceName}/` : '';
+            experienceName = isGraybox ? `${experienceName}/` : '';
 
             const bulkUrl = `https://admin.hlx.page/${operation}/${urlInfo.getOwner()}/${repo}/${urlInfo.getBranch()}/${experienceName}*`;
             const options = {

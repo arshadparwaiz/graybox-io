@@ -41,7 +41,7 @@ async function main(params) {
 
     const appConfig = new AppConfig(params);
     const {
-        adminPageUri, rootFolder, gbRootFolder, promoteIgnorePaths, experienceName, projectExcelPath, draftsOnly
+        driveId, adminPageUri, rootFolder, gbRootFolder, promoteIgnorePaths, experienceName, projectExcelPath, draftsOnly
     } = appConfig.getPayload();
 
     const filesWrapper = await initFilesWrapper(logger);
@@ -105,6 +105,7 @@ async function main(params) {
     await Promise.all(writeBatchJsonPromises);
 
     const inputParams = {};
+    inputParams.driveId = driveId;
     inputParams.rootFolder = rootFolder;
     inputParams.gbRootFolder = gbRootFolder;
     inputParams.projectExcelPath = projectExcelPath;
