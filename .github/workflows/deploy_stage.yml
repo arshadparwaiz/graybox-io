@@ -3,7 +3,9 @@ name: AIO App CI - Stage
 on:
   push:
     branches:
-      - stage
+      - stage # Runs when code is pushed to the stage branch
+  workflow_dispatch: # Enables manual trigger from GitHub UI
+
 jobs:
   deploy:
     name: Deploy to Stage

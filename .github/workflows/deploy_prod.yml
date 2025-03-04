@@ -3,7 +3,8 @@ name: AIO App CI - Prod
 on:
   push:
     branches:
-      - main
+      - main # Runs when code is pushed to the main branch
+  workflow_dispatch: # Enables manual trigger from GitHub UI
 jobs:
   deploy:
     name: Deploy to Prod
