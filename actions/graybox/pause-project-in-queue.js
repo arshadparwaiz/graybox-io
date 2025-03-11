@@ -35,7 +35,7 @@ async function main(params) {
             const projectQueue = await filesWrapper.readFileIntoObject(projectQueuePath);
             if (projectQueue) {
                 const index = projectQueue.findIndex((obj) => obj.projectPath === projectPath);
-                if (!index) {
+                if (index === -1) {
                     responsePayload = `No project with ${projectPath} path exists in the project queue`;
                     return {
                         code: responseCode,
