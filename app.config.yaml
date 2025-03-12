@@ -77,6 +77,12 @@ application:
             runtime: nodejs:18
             inputs:
               LOG_LEVEL: debug
+          file-status:
+            function: actions/graybox/file-status.js
+            web: 'yes'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
           preview-sched:
             function: actions/graybox/preview-sched.js
             web: 'no'

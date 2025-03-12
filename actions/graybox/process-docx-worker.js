@@ -96,21 +96,22 @@ async function processFiles({
         options.headers.append('Authorization', `token ${grayboxHlxAdminApiKey}`);
     }
 
+    const project = `${gbRootFolder}/${experienceName}`;
     // Read the Project Status in the current project's "status.json" file
-    const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
+    const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
 
     const toBeStatus = 'process_content_in_progress';
     // Update the In Progress Status in the current project's "status.json" file
     projectStatusJson.status = toBeStatus;
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
 
     // Update the Project Status in the parent "project_queue.json" file
     await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
 
     // Read the Batch Status in the current project's "batch_status.json" file
-    const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`);
+    const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status.json`);
 
-    logger.info(`In Process-doc-worker, batchStatusJson: ${JSON.stringify(batchStatusJson)}`);
+    logger.info(`In Process-doc-worker, for project: ${project} batchStatusJson: ${JSON.stringify(batchStatusJson)}`);
     const promoteBatchesJson = {};
     const copyBatchesJson = {};
     let promoteBatchCount = 0;
@@ -155,7 +156,7 @@ async function processFiles({
 
                             // Write the processed documents to the AIO folder for docx files
                             // eslint-disable-next-line no-await-in-loop
-                            await filesWrapper.writeFileFromStream(`graybox_promote${gbRootFolder}/${experienceName}/docx${destinationFilePath}`, docxFileStream);
+                            await filesWrapper.writeFileFromStream(`graybox_promote${project}/docx${destinationFilePath}`, docxFileStream);
 
                             let promoteBatchJson = promoteBatchesJson[batchName];
                             if (!promoteBatchJson) {
@@ -167,7 +168,7 @@ async function processFiles({
                             }
                             promoteBatchesJson[batchName] = promoteBatchJson;
 
-                            logger.info(`In Process-doc-worker Promote Batch JSON after push: ${JSON.stringify(promoteBatchesJson)}`);
+                            logger.info(`In Process-doc-worker, for project: ${project} Promote Batch JSON after push: ${JSON.stringify(promoteBatchesJson)}`);
 
                             // If the promote batch count reaches the limit, increment the promote batch count
                             if (promoteBatchCount === BATCH_REQUEST_PROMOTE) { // TODO remove this code if promoteBatchCount is not needed, and instead initial preview batch count is used
@@ -176,7 +177,7 @@ async function processFiles({
 
                             // Write the promote batches JSON file
                             // eslint-disable-next-line no-await-in-loop
-                            await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
+                            await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, promoteBatchesJson);
                         } else {
                             processDocxErrors.push(`Error processing docx for ${status.fileName}`);
                         }
@@ -186,7 +187,7 @@ async function processFiles({
 
                         // Update the Project Status & Batch Status in the current project's "status.json" & updated batch_status.json file respectively
                         // eslint-disable-next-line no-await-in-loop
-                        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
+                        await filesWrapper.writeFile(`graybox_promote${project}/batch_status.json`, batchStatusJson);
                     } else {
                         // Copy Source full path with file name and extension
                         const copySourceFilePath = `${status.path.substring(0, status.path.lastIndexOf('/') + 1)}${status.fileName}`;
@@ -208,16 +209,16 @@ async function processFiles({
                         if (copyBatchCount === BATCH_REQUEST_PROMOTE) { // TODO remove this code if copyBatchCount is not needed, and instead initial preview batch count is used
                             copyBatchCount += 1; // Increment the copy batch count
                         }
-                        logger.info(`In Process-doc-worker Copy Batch JSON after push: ${JSON.stringify(copyBatchesJson)}`);
+                        logger.info(`In Process-doc-worker, for project: ${project} Copy Batch JSON after push: ${JSON.stringify(copyBatchesJson)}`);
                         // Write the copy batches JSON file
                         // eslint-disable-next-line no-await-in-loop
-                        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
+                        await filesWrapper.writeFile(`graybox_promote${project}/copy_batches.json`, copyBatchesJson);
 
                         // Update each Batch Status in the current project's "batch_status.json" file
                         batchStatusJson[batchName] = 'processed';
                         // Update the Project Status & Batch Status in the current project's "status.json" & updated batch_status.json file respectively
                         // eslint-disable-next-line no-await-in-loop
-                        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
+                        await filesWrapper.writeFile(`${project}/batch_status.json`, batchStatusJson);
                     }
                 }
             }
@@ -225,19 +226,19 @@ async function processFiles({
     });
 
     await Promise.all(allProcessingPromises); // await all async functions in the array are executed
-    await updateStatuses(promoteBatchesJson, copyBatchesJson, gbRootFolder, experienceName, filesWrapper, processDocxErrors, sharepoint, projectExcelPath);
+    await updateStatuses(promoteBatchesJson, copyBatchesJson, project, filesWrapper, processDocxErrors, sharepoint, projectExcelPath);
 }
 
-async function updateStatuses(promoteBatchesJson, copyBatchesJson, gbRootFolder, experienceName, filesWrapper, processContentErrors, sharepoint, projectExcelPath) {
+async function updateStatuses(promoteBatchesJson, copyBatchesJson, project, filesWrapper, processContentErrors, sharepoint, projectExcelPath) {
     // Write the copy batches JSON file
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/copy_batches.json`, copyBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, promoteBatchesJson);
     // Update the Project Status in JSON files
-    updateProjectStatus(gbRootFolder, experienceName, filesWrapper);
+    updateProjectStatus(project, filesWrapper);
 
     // Write the processDocxErrors to the AIO Files
     if (processContentErrors.length > 0) {
-        await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/process_content_errors.json`, processContentErrors);
+        await filesWrapper.writeFile(`graybox_promote${project}/process_content_errors.json`, processContentErrors);
     }
 
     // Update the Project Excel with the Promote Status
@@ -256,21 +257,21 @@ async function updateStatuses(promoteBatchesJson, copyBatchesJson, gbRootFolder,
  * @param {*} filesWrapper filesWrapper object
  * @returns updated project status
  */
-async function updateProjectStatus(gbRootFolder, experienceName, filesWrapper) {
+async function updateProjectStatus(project, filesWrapper) {
     // Update the Project Status in the current project's "status.json" file
-    const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
+    const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
     const toBeStatus = 'processed';
     projectStatusJson.status = toBeStatus;
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
 
     // Update the Project Status in the parent "project_queue.json" file
-    const projectQueue = await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
-    logger.info(`In process-content-worker After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueue)}`);
+    const projectQueue = await changeProjectStatusInQueue(filesWrapper, project, toBeStatus);
+    logger.info(`In process-content-worker, for project: ${project} After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueue)}`);
 }
 
-async function changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus) {
+async function changeProjectStatusInQueue(filesWrapper, project, toBeStatus) {
     const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
-    const index = projectQueue.findIndex((obj) => obj.projectPath === `${gbRootFolder}/${experienceName}`);
+    const index = projectQueue.findIndex((obj) => obj.projectPath === `${project}`);
     if (index !== -1) {
         // Replace the object at the found index
         projectQueue[index].status = toBeStatus;

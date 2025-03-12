@@ -44,14 +44,14 @@ async function main(params) {
 
             // Read the Batch Status in the current project's "batch_status.json" file
             const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status.json`);
-            logger.info(`In Promote Sched, batchStatusJson: ${JSON.stringify(batchStatusJson)}`);
+            logger.info(`In Promote Sched, batchStatusJson for project: ${project} is: ${JSON.stringify(batchStatusJson)}`);
 
             // Find if any batch is in 'copy_in_progress' status, if yes then don't trigger another copy action for another "processed" batch
             const copyOrPromoteInProgressBatch = Object.entries(batchStatusJson)
                 .find(([batchName, copyBatchJson]) => (copyBatchJson.status === 'copy_in_progress' || copyBatchJson.status === 'promote_in_progress'));
 
             if (copyOrPromoteInProgressBatch && Array.isArray(copyOrPromoteInProgressBatch) && copyOrPromoteInProgressBatch.length > 0) {
-                responsePayload = `Promote or Copy Action already in progress for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
+                responsePayload = `Promote or Copy Action already in progress for project: ${project} for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
                 return {
                     code: 200,
                     payload: responsePayload

@@ -34,6 +34,7 @@ async function main(params) {
         if (await filesWrapper.fileExists(projectQueuePath)) {
             const projectQueue = await filesWrapper.readFileIntoObject(projectQueuePath);
             if (projectQueue) {
+                logger.info(`In Pause Project Action, Before pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
                 const index = projectQueue.findIndex((obj) => obj.projectPath === projectPath);
                 if (index === -1) {
                     responsePayload = `No project with ${projectPath} path exists in the project queue`;
@@ -42,7 +43,6 @@ async function main(params) {
                         payload: responsePayload,
                     };
                 }
-                logger.info(`In Pause Project Action, Before pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
                 projectQueue[index].status = 'paused';
                 await filesWrapper.writeFile(projectQueuePath, projectQueue);
                 const project = projectQueue[index].projectPath;

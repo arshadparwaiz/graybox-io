@@ -86,6 +86,8 @@ async function main(params) {
     // Promote Batches JSON
     const promoteBatchesJson = {};
 
+    const project = `${gbRootFolder}/${experienceName}`;
+
     // create batches to process the data
     const gbFilesBatchArray = [];
     const writeBatchJsonPromises = [];
@@ -96,7 +98,7 @@ async function main(params) {
         batchStatusJson[`${batchName}`] = 'initiated';
 
         // Each Files Batch is written to a batch_n.json file
-        writeBatchJsonPromises.push(filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batches/${batchName}.json`, arrayChunk));
+        writeBatchJsonPromises.push(filesWrapper.writeFile(`graybox_promote${project}/batches/${batchName}.json`, arrayChunk));
 
         // Write the GBFile Batches to the gbfile_batches.json file
         gbFileBatchesJson[batchName] = arrayChunk;
@@ -127,11 +129,11 @@ async function main(params) {
         }
     }
 
-    const newProject = { projectPath: `${gbRootFolder}/${experienceName}`, status: 'initiated', createdTime: Date.now() };
+    const newProject = { projectPath: `${project}`, status: 'initiated', createdTime: Date.now() };
 
     // TODO - check if replacing existing project is needed, if not remove this logic and just add the project to the queue
     // Find the index of the same  experience Project exists, replace it with this one
-    const index = projectQueue.findIndex((obj) => obj.projectPath === `${gbRootFolder}/${experienceName}`);
+    const index = projectQueue.findIndex((obj) => obj.projectPath === `${project}`);
     if (index !== -1) {
         // Replace the object at the found index
         projectQueue[index] = newProject;
@@ -149,22 +151,22 @@ async function main(params) {
 
     // write to JSONs to AIO Files for Projects Queue and Project Status
     await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/status.json`, projectStatusJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/gbfile_batches.json`, gbFileBatchesJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`, batchStatusJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/preview_status.json`, previewStatusJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/preview_errors.json`, projectPreviewErrorsJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promoted_paths.json`, promotedPathsJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_errors.json`, promoteErrorsJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/promote_batches.json`, promoteBatchesJson);
-    await filesWrapper.writeFile(`graybox_promote${gbRootFolder}/${experienceName}/copy_batches.json`, copyBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/gbfile_batches.json`, gbFileBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/batch_status.json`, batchStatusJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/preview_status.json`, previewStatusJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/preview_errors.json`, projectPreviewErrorsJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/promoted_paths.json`, promotedPathsJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/promote_errors.json`, promoteErrorsJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, promoteBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/copy_batches.json`, copyBatchesJson);
 
     // read Graybox Project Json from AIO Files
     const projectQueueJson = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
     logger.info(`In Initiate Promote Worker, Project Queue Json: ${JSON.stringify(projectQueueJson)}`);
-    const statusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/status.json`);
+    const statusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
     logger.info(`In Initiate Promote Worker, Project Status Json: ${JSON.stringify(statusJson)}`);
-    const projectBatchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/batch_status.json`);
+    const projectBatchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status.json`);
     logger.info(`In Initiate Promote Worker, Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
 
     // process data in batches

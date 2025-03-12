@@ -40,21 +40,21 @@ async function main(params) {
         if (projectEntry && projectEntry.projectPath) {
             const project = projectEntry.projectPath;
             const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
-            logger.info(`In Copy-sched Project Status Json: ${JSON.stringify(projectStatusJson)}`);
+            logger.info(`In Copy-sched Project Status for project: ${project} is: ${JSON.stringify(projectStatusJson)}`);
 
             // Read the Batch Status in the current project's "batch_status.json" file
             const batchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status.json`);
-            logger.info(`In Copy Sched, batchStatusJson: ${JSON.stringify(batchStatusJson)}`);
+            logger.info(`In Copy Sched, Batch Status Json for project: ${project} is: ${JSON.stringify(batchStatusJson)}`);
 
             const copyBatchesJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/copy_batches.json`);
-            logger.info(`In Copy-sched Copy Batches Json: ${JSON.stringify(copyBatchesJson)}`);
+            logger.info(`In Copy-sched Copy Batches Json for project: ${project} is: ${JSON.stringify(copyBatchesJson)}`);
 
             // Find if any batch is in 'copy_in_progress' status, if yes then don't trigger another copy action for another "processed" batch
             const copyOrPromoteInProgressBatch = Object.entries(batchStatusJson)
                 .find(([batchName, copyBatchJson]) => (copyBatchJson.status === 'copy_in_progress' || copyBatchJson.status === 'promote_in_progress'));
 
             if (copyOrPromoteInProgressBatch && Array.isArray(copyOrPromoteInProgressBatch) && copyOrPromoteInProgressBatch.length > 0) {
-                responsePayload = `Promote or Copy Action already in progress for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
+                responsePayload = `Promote or Copy Action already in progress for project: ${project} for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
                 return {
                     code: 200,
                     payload: responsePayload

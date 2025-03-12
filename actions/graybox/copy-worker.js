@@ -50,7 +50,7 @@ async function main(params) {
 
     const copyBatchJson = copyBatchesJson[batchName] || {};
 
-    logger.info(`In Copy Worker, Copy File Paths for batchname ${batchName}:  ${JSON.stringify(copyBatchJson)}`);
+    logger.info(`In Copy Worker, Copy File Paths for project: ${project} for batchname ${batchName}:  ${JSON.stringify(copyBatchJson)}`);
 
     // Update & Write the Batch Status to in progress "batch_status.json" file
     // So that the scheduler doesn't pick the same batch again
@@ -81,7 +81,7 @@ async function main(params) {
         }
     }
 
-    logger.info(`In Copy Worker, Promotes for batchname ${batchName} no.of files ${promotes.length}, files list: ${JSON.stringify(promotes)}`);
+    logger.info(`In Copy Worker, Promotes for project: ${project} for batchname ${batchName} no.of files ${promotes.length}, files list: ${JSON.stringify(promotes)}`);
     // Update the Promoted Paths in the current project's "promoted_paths.json" file
     if (promotes.length > 0) {
         const promotedPathsJson = await filesWrapper.readFileIntoObject(`graybox_promote${gbRootFolder}/${experienceName}/promoted_paths.json`) || {};
