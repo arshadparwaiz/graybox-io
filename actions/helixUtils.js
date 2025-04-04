@@ -116,7 +116,7 @@ class HelixUtils {
                             e.fileName = jobStatus[e.path]?.fileName;
                             e.resourcePath = jobStatus[e.path]?.resourcePath;
 
-                            e.mdPath = `https://${urlInfo.getBranch()}--${this.getRepo(isGraybox)}--${urlInfo.getOwner()}.hlx.page${e.resourcePath}`;
+                            e.mdPath = `https://${urlInfo.getBranch()}--${this.getRepo(isGraybox)}--${urlInfo.getOwner()}.aem.page${e.resourcePath}`;
                         }
                         e.responseCode = jobStatus[e.path]?.responseCode;
                     });

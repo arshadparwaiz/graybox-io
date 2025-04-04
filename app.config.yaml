@@ -83,6 +83,12 @@ application:
             runtime: nodejs:18
             inputs:
               LOG_LEVEL: debug
+          keys-check:
+            function: actions/graybox/keys-check.js
+            web: 'yes'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
           preview-sched:
             function: actions/graybox/preview-sched.js
             web: 'no'

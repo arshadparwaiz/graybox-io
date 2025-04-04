@@ -134,7 +134,7 @@ async function processFiles({
                     let content = await response.text();
                     let docx;
 
-                    // Sample Image URL [image0]: https://main--bacom-graybox--adobecom.hlx.page/media_115d4450fd3ef2f1559f63e25d7e299eaba9b79ee.jpeg#width=2560&height=1600
+                    // Sample Image URL [image0]: https://main--bacom-graybox--adobecom.aem.page/media_115d4450fd3ef2f1559f63e25d7e299eaba9b79ee.jpeg#width=2560&height=1600
                     const imageRegex = /\[image.*\]: https:\/\/.*\/media_.*\.(?:jpg|jpeg|png|gif|bmp|webp)#width=\d+&height=\d+/g;
                     const imageMatches = content.match(imageRegex);
 
