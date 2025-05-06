@@ -15,8 +15,8 @@
  * from Adobe.
  ************************************************************************* */
 
-const msal = require('@azure/msal-node');
-const { getAioLogger } = require('./utils');
+import * as msal from '@azure/msal-node';
+import { getAioLogger } from './utils.js';
 
 /**
  * Creates a new SharePoint object, that has two methods:
@@ -126,4 +126,4 @@ class SharepointAuth {
     }
 }
 
-module.exports = SharepointAuth;
+export default SharepointAuth;

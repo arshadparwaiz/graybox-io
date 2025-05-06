@@ -15,11 +15,11 @@
 * from Adobe.
 ************************************************************************* */
 
-const openwhisk = require('openwhisk');
-const { getAioLogger } = require('../../actions/utils');
-const { validateAction } = require('../../actions/graybox/validateAction');
-const AppConfig = require('../../actions/appConfig');
-const { main } = require('../../actions/graybox/promote');
+import openwhisk from 'openwhisk';
+import { getAioLogger } from '../../actions/utils.js';
+import validateAction from '../../actions/graybox/validateAction.js';
+import AppConfig from '../../actions/appConfig.js';
+import { main } from '../../actions/graybox/promote.js';
 
 jest.mock('openwhisk');
 jest.mock('../../actions/utils');

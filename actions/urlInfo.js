@@ -64,4 +64,4 @@ class UrlInfo {
     }
 }
 
-module.exports = UrlInfo;
+export default UrlInfo;

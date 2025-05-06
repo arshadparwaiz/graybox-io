@@ -15,9 +15,9 @@
  * from Adobe.
  ************************************************************************* */
 
-const fetch = require('node-fetch');
-const { getAioLogger } = require('./utils');
-const Sharepoint = require('./sharepoint');
+import fetch from 'node-fetch';
+import { getAioLogger } from './utils.js';
+import Sharepoint from './sharepoint.js';
 
 const logger = getAioLogger();
 
@@ -79,4 +79,4 @@ class GrayboxUser {
     }
 }
 
-module.exports = GrayboxUser;
+export default GrayboxUser;

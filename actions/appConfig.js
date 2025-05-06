@@ -15,9 +15,9 @@
  * from Adobe.
  ************************************************************************* */
 
-const crypto = require('crypto');
-const { strToArray, getAioLogger } = require('./utils');
-const UrlInfo = require('./urlInfo');
+import crypto from 'crypto';
+import { strToArray, getAioLogger } from './utils.js';
+import UrlInfo from './urlInfo.js';
 
 const GRAPH_API = 'https://graph.microsoft.com/v1.0';
 
@@ -220,4 +220,4 @@ class AppConfig {
     }
 }
 
-module.exports = AppConfig;
+export default AppConfig;

@@ -15,25 +15,25 @@
 * from Adobe.
 ************************************************************************* */
 
-const AioLogger = require('@adobe/aio-lib-core-logging');
+import AioLogger from '@adobe/aio-lib-core-logging';
 
-function getAioLogger(loggerName = 'main', logLevel = 'info') {
+export function getAioLogger(loggerName = 'main', logLevel = 'info') {
     return AioLogger(loggerName, { level: logLevel });
 }
 
-function strToArray(val) {
+export function strToArray(val) {
     if (val && typeof val === 'string') {
         return val.split(',').map((e) => e.trim()).filter((e) => e);
     }
     return val;
 }
 
-function toUTCStr(dt) {
+export function toUTCStr(dt) {
     const ret = new Date(dt);
     return Number.isNaN(ret.getTime()) ? dt : ret.toUTCString();
 }
 
-function isFilePathWithWildcard(filePath, pattern) {
+export function isFilePathWithWildcard(filePath, pattern) {
     if (!filePath || !pattern) {
         return false;
     }
@@ -43,25 +43,25 @@ function isFilePathWithWildcard(filePath, pattern) {
     return regexPattern.test(filePath);
 }
 
-function isFilePatternMatched(filePath, patterns) {
+export function isFilePatternMatched(filePath, patterns) {
     if (patterns && Array.isArray(patterns)) {
         return !!patterns.find((pattern) => isFilePathWithWildcard(filePath, pattern) || isFilePathWithWildcard(filePath, `${pattern}/*`));
     }
     return isFilePathWithWildcard(filePath, patterns);
 }
 
-function logMemUsage() {
+export function logMemUsage() {
     const logger = getAioLogger();
     const memStr = JSON.stringify(process.memoryUsage());
     logger.info(`Memory Usage : ${memStr}`);
 }
 
-async function delay(milliseconds = 100) {
+export async function delay(milliseconds = 100) {
     // eslint-disable-next-line no-promise-executor-return
     await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function handleExtension(path) {
+export function handleExtension(path) {
     const pidx = path.lastIndexOf('/');
     const fld = path.substring(0, pidx + 1);
     let fn = path.substring(pidx + 1);
@@ -85,13 +85,3 @@ function handleExtension(path) {
 
     return `${fld}${fn}`;
 }
-
-module.exports = {
-    getAioLogger,
-    strToArray,
-    isFilePatternMatched,
-    toUTCStr,
-    logMemUsage,
-    delay,
-    handleExtension
-};

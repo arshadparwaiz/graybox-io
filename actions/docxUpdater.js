@@ -14,11 +14,10 @@
 * is strictly forbidden unless prior written permission is obtained
 * from Adobe.
 ************************************************************************* */
-const parseMarkdown = require('milo-parse-markdown').default;
-const { mdast2docx } = require('../node_modules/milo-md2docx/lib/index');
-const { getAioLogger } = require('./utils');
-
-const DEFAULT_STYLES = require('../defaultstyles.xml');
+import parseMarkdown from 'milo-parse-markdown';
+import { mdast2docx } from 'milo-md2docx';
+import { getAioLogger } from './utils.js';
+import DEFAULT_STYLES from './defaultstyles.xml.js';
 
 const gbStyleExpression = 'gb-'; // graybox style expression. need to revisit if there are any more styles to be considered.
 const emptyString = '';
@@ -60,7 +59,6 @@ async function updateDocument(content, expName, hlxAdminApiKey) {
         logger.debug(`Error while generating docxfromdast ${err}`);
     }
 
-    logger.info('Mdast to Docx file conversion done');
     return docx;
 }
 
@@ -76,10 +74,21 @@ const updateExperienceNameFromLinks = (mdast, expName) => {
             if (child.type === 'gridTable') {
                 firstGtRows.push(findFirstGtRowInNode(child));
             }
-            // remove experience name from links on the document
+            // Process link URLs
             if (child.type === 'link' && child.url && (child.url.includes(expName) || child.url.includes(gbDomainSuffix))) {
                 child.url = child.url.replaceAll(`/${expName}/`, '/').replaceAll(gbDomainSuffix, emptyString);
             }
+
+            // Process link text content that contains graybox URLs
+            if (child.type === 'link' && child.children) {
+                child.children.forEach((textNode) => {
+                    if (textNode.type === 'text' && textNode.value &&
+                        (textNode.value.includes(gbDomainSuffix) || textNode.value.includes(expName))) {
+                        textNode.value = textNode.value.replaceAll(`/${expName}/`, '/').replaceAll(gbDomainSuffix, emptyString);
+                    }
+                });
+            }
+
             if (child.children) {
                 updateExperienceNameFromLinks(child.children, expName);
             }
@@ -99,7 +108,7 @@ const iterateGtRowsToReplaceStyles = () => {
         });
     } catch (err) {
         // Mostly bad string ignored
-        logger().debug(`Error while iterating GTRows to replaces styles ${err}`);
+        logger.debug(`Error while iterating GTRows to replaces styles ${err}`);
     }
 };
 
@@ -133,9 +142,8 @@ function findFirstGtRowInNode(node) {
         return node;
     }
     if (node.children) {
-        for (const child of node.children) {
-            return findFirstGtRowInNode(child);
-        }
+        const foundNodes = node.children.map(findFirstGtRowInNode).filter(Boolean);
+        return foundNodes.length > 0 ? foundNodes[0] : null;
     }
     return null;
 }
@@ -201,4 +209,6 @@ async function generateDocxFromMdast(mdast, hlxAdminApiKey) {
     return docx;
 }
 
-module.exports = updateDocument;
+export {
+    updateDocument,
+};

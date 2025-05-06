@@ -15,10 +15,10 @@
 * from Adobe.
 ************************************************************************* */
 
-const { getAioLogger, toUTCStr } = require('../utils');
-const AppConfig = require('../appConfig');
-const Sharepoint = require('../sharepoint');
-const initFilesWrapper = require('./filesWrapper');
+import { getAioLogger, toUTCStr } from '../utils.js';
+import AppConfig from '../appConfig.js';
+import Sharepoint from '../sharepoint.js';
+import initFilesWrapper from './filesWrapper.js';
 
 const logger = getAioLogger();
 
@@ -76,11 +76,14 @@ async function main(params) {
     // Collect all promises from the forEach loop
     // eslint-disable-next-line no-restricted-syntax
     for (const promoteFilePath of promoteFilePaths) {
+        // Check if the file is a docx or xlsx based on file extension
+        const isExcelFile = promoteFilePath.toLowerCase().endsWith('.xlsx') || promoteFilePath.toLowerCase().endsWith('.xls');
+        const folderType = isExcelFile ? 'excel' : 'docx';
         // eslint-disable-next-line no-await-in-loop
-        const promoteDocx = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/docx${promoteFilePath}`);
-        if (promoteDocx) {
+        const promoteFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/${folderType}${promoteFilePath}`);
+        if (promoteFile) {
             // eslint-disable-next-line no-await-in-loop
-            const saveStatus = await sharepoint.saveFileSimple(promoteDocx, promoteFilePath);
+            const saveStatus = await sharepoint.saveFileSimple(promoteFile, promoteFilePath);
 
             if (saveStatus?.success) {
                 promotes.push(promoteFilePath);
@@ -142,7 +145,7 @@ async function main(params) {
     // Update the Project Excel with the Promote Status
     try {
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
-        const promoteExcelValues = [[`Step 3 of 5: Promote completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses]];
+        const promoteExcelValues = [[`Step 3 of 5: Promote completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, '']];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
     } catch (err) {
         logger.error(`Error Occured while updating Excel during Graybox Promote: ${err}`);
@@ -195,4 +198,4 @@ function exitAction(resp) {
     return resp;
 }
 
-exports.main = main;
+export { main };

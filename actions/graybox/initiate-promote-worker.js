@@ -15,12 +15,10 @@
 * from Adobe.
 ************************************************************************* */
 
-const initFilesWrapper = require('./filesWrapper');
-const {
-    getAioLogger, isFilePatternMatched, toUTCStr
-} = require('../utils');
-const AppConfig = require('../appConfig');
-const Sharepoint = require('../sharepoint');
+import initFilesWrapper from './filesWrapper.js';
+import { getAioLogger, isFilePatternMatched, toUTCStr } from '../utils.js';
+import AppConfig from '../appConfig.js';
+import Sharepoint from '../sharepoint.js';
 
 const logger = getAioLogger();
 const MAX_CHILDREN = 1000;
@@ -46,10 +44,11 @@ async function main(params) {
 
     const filesWrapper = await initFilesWrapper(logger);
     const sharepoint = new Sharepoint(appConfig);
+    const project = `${gbRootFolder}/${experienceName}`;
 
     try {
         // Update Promote Status
-        const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '']];
+        const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '', '']];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteTriggeredExcelValues);
     } catch (err) {
         logger.error(`Error Occured while updating Excel during Graybox Initiate Promote: ${err}`);
@@ -61,6 +60,11 @@ async function main(params) {
     // Get all files in the graybox folder for the specific experience name
     // NOTE: This does not capture content inside the locale/expName folders yet
     const gbFiles = await findAllFiles(experienceName, appConfig, sharepoint);
+    const grayboxFilesToBePromoted = [['Graybox files to be promoted', toUTCStr(new Date()), '', JSON.stringify(gbFiles)]];
+    await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', grayboxFilesToBePromoted);
+
+    // Write all the files to a master list file
+    await filesWrapper.writeFile(`graybox_promote${project}/master_list.json`, gbFiles);
 
     // Create Batch Status JSON
     const batchStatusJson = {};
@@ -85,8 +89,6 @@ async function main(params) {
 
     // Promote Batches JSON
     const promoteBatchesJson = {};
-
-    const project = `${gbRootFolder}/${experienceName}`;
 
     // create batches to process the data
     const gbFilesBatchArray = [];
@@ -170,8 +172,7 @@ async function main(params) {
     logger.info(`In Initiate Promote Worker, Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
 
     // process data in batches
-    let responsePayload;
-    responsePayload = 'Graybox Initiate Promote Worker action completed.';
+    const responsePayload = 'Graybox Initiate Promote Worker action completed.';
     logger.info(responsePayload);
     return {
         body: responsePayload,
@@ -192,7 +193,6 @@ async function findAllFiles(experienceName, appConfig, sharepoint) {
         options,
         gbFolders: appConfig.isDraftOnly() ? [`/${experienceName}/drafts`] : [''],
         promoteIgnoreList,
-        downloadBaseURI: sp.api.file.download.baseURI,
         experienceName,
         sharepoint
     });
@@ -202,15 +202,15 @@ async function findAllFiles(experienceName, appConfig, sharepoint) {
  * Iteratively finds all files under a specified root folder.
  */
 async function findAllGrayboxFiles({
-    baseURI, options, gbFolders, promoteIgnoreList, downloadBaseURI, experienceName, sharepoint
+    baseURI, options, gbFolders, promoteIgnoreList, experienceName, sharepoint
 }) {
     const gbRoot = baseURI.split(':').pop();
     // Regular expression to select the gbRoot and anything before it
     // Eg: the regex selects "https://<sharepoint-site>:/<app>-graybox"
     const pPathRegExp = new RegExp(`.*:${gbRoot}`);
-    // Regular expression to select paths that has the experienceName at first or second level
-    const pathsToSelectRegExp = new RegExp(`^/([^/]+/)?${experienceName}(/.*)?$`);
+    const pathsToSelectRegExp = new RegExp(`^\\/(?:langstore\\/[^/]+|[^/]+)?\\/?${experienceName}\\/.+$`);
     const gbFiles = [];
+    // gbFolders = ['/sabya']; // TODO: Used for quick debugging. Uncomment only during local testing.
     while (gbFolders.length !== 0) {
         const uri = `${baseURI}${gbFolders.shift()}:/children?$top=${MAX_CHILDREN}`;
         // eslint-disable-next-line no-await-in-loop
@@ -243,4 +243,4 @@ async function findAllGrayboxFiles({
     return gbFiles;
 }
 
-exports.main = main;
+export { main };

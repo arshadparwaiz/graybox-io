@@ -15,13 +15,11 @@
 * from Adobe.
 ************************************************************************* */
 
-const {
-    getAioLogger, handleExtension, toUTCStr
-} = require('../utils');
-const AppConfig = require('../appConfig');
-const HelixUtils = require('../helixUtils');
-const Sharepoint = require('../sharepoint');
-const initFilesWrapper = require('./filesWrapper');
+import { getAioLogger, handleExtension, toUTCStr } from '../utils.js';
+import AppConfig from '../appConfig.js';
+import HelixUtils from '../helixUtils.js';
+import Sharepoint from '../sharepoint.js';
+import initFilesWrapper from './filesWrapper.js';
 
 const logger = getAioLogger();
 
@@ -51,9 +49,9 @@ async function main(params) {
             try {
                 let excelValues = '';
                 if (projectStatusJson.status === 'initiated') {
-                    excelValues = [[`Initial Preview started for '${experienceName}' experience`, toUTCStr(new Date()), '']];
+                    excelValues = [[`Initial Preview started for '${experienceName}' experience`, toUTCStr(new Date()), '', '']];
                 } else if (projectStatusJson.status === 'promoted') {
-                    excelValues = [[`Final Preview started for promoted content of '${experienceName}' experience`, toUTCStr(new Date()), '']];
+                    excelValues = [[`Final Preview started for promoted content of '${experienceName}' experience`, toUTCStr(new Date()), '', '']];
                 }
                 // Update Preview Status
                 await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
@@ -141,10 +139,10 @@ async function main(params) {
                 if (projectStatusJson.status === 'initial_preview_in_progress') {
                     const sFailedPreviews = failedPreviews.length > 0 ?
                         `Failed Previews(Please preview these files individually or with Milo Bulk Preview tool, and trigger Promote): \n${failedPreviews.join('\n')}` : '';
-                    excelValues = [['Step 1 of 5: Initial Preview of Graybox completed', toUTCStr(new Date()), sFailedPreviews]];
+                    excelValues = [['Step 1 of 5: Initial Preview of Graybox completed', toUTCStr(new Date()), sFailedPreviews, '']];
                 } else if (projectStatusJson.status === 'final_preview_in_progress') {
                     const sFailedPreviews = failedPreviews.length > 0 ? `Failed Previews: \n${failedPreviews.join('\n')}` : '';
-                    excelValues = [['Step 5 of 5: Final Preview of Promoted Content completed', toUTCStr(new Date()), sFailedPreviews]];
+                    excelValues = [['Step 5 of 5: Final Preview of Promoted Content completed', toUTCStr(new Date()), sFailedPreviews, '']];
                 }
                 // Update Preview Status
                 await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
@@ -303,4 +301,4 @@ function exitAction(resp) {
     return resp;
 }
 
-exports.main = main;
+export { main };

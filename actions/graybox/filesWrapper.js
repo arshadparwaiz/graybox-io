@@ -1,5 +1,5 @@
-const Files = require('@adobe/aio-lib-files');
-const streamLib = require('stream');
+import Files from '@adobe/aio-lib-files';
+import streamLib from 'stream';
 
 const initFilesWrapper = async (logger) => {
     const files = await Files.init();
@@ -122,4 +122,4 @@ const initFilesWrapper = async (logger) => {
     };
 };
 
-module.exports = initFilesWrapper;
+export default initFilesWrapper;

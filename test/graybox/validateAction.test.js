@@ -15,8 +15,8 @@
 * from Adobe.
 ************************************************************************* */
 
-const { validateAction } = require('../../actions/graybox/validateAction'); // Update the path accordingly
-const GrayboxUser = require('../../actions/grayboxUser');
+import validateAction from '../../actions/graybox/validateAction.js';
+import GrayboxUser from '../../actions/grayboxUser.js';
 
 const mockValidParams = {
     rootFolder: '/app',

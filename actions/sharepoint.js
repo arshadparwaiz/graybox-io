@@ -15,10 +15,10 @@
 * from Adobe.
 ************************************************************************* */
 
-const { Headers } = require('node-fetch');
-const fetch = require('node-fetch');
-const { getAioLogger } = require('./utils');
-const SharepointAuth = require('./sharepointAuth');
+import { Headers } from 'node-fetch';
+import fetch from 'node-fetch';
+import { getAioLogger } from './utils.js';
+import SharepointAuth from './sharepointAuth.js';
 
 const SP_CONN_ERR_LST = ['ETIMEDOUT', 'ECONNRESET'];
 const APP_USER_AGENT = 'NONISV|Adobe|MiloFloodgate/0.1.0';
@@ -234,7 +234,6 @@ class Sharepoint {
     // fetch-with-retry added to check for Sharepoint RateLimit headers and 429 errors and to handle them accordingly.
     async fetchWithRetry(apiUrl, options, retryCounts) {
         let retryCount = retryCounts || 0;
-        const logger = getAioLogger();
         return new Promise((resolve, reject) => {
             const currentTime = Date.now();
             if (retryCount > NUM_REQ_THRESHOLD) {
@@ -292,4 +291,4 @@ class Sharepoint {
     }
 }
 
-module.exports = Sharepoint;
+export default Sharepoint;

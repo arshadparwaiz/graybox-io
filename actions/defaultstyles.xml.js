@@ -1831,4 +1831,4 @@ const DEFAULT_STYLE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   </w:style>
 </w:styles>`;
 
-module.exports = DEFAULT_STYLE;
+export default DEFAULT_STYLE;

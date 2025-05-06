@@ -16,9 +16,9 @@
 ************************************************************************* */
 
 // eslint-disable-next-line import/no-extraneous-dependencies
-const openwhisk = require('openwhisk');
-const { getAioLogger } = require('../utils');
-const initFilesWrapper = require('./filesWrapper');
+import openwhisk from 'openwhisk';
+import { getAioLogger } from '../utils.js';
+import initFilesWrapper from './filesWrapper.js';
 
 async function main(params) {
     const logger = getAioLogger();
@@ -51,7 +51,7 @@ async function main(params) {
 
             // Find if any batch is in 'copy_in_progress' status, if yes then don't trigger another copy action for another "processed" batch
             const copyOrPromoteInProgressBatch = Object.entries(batchStatusJson)
-                .find(([batchName, copyBatchJson]) => (copyBatchJson.status === 'copy_in_progress' || copyBatchJson.status === 'promote_in_progress'));
+                .find(([_, copyBatchJson]) => (copyBatchJson.status === 'copy_in_progress' || copyBatchJson.status === 'promote_in_progress'));
 
             if (copyOrPromoteInProgressBatch && Array.isArray(copyOrPromoteInProgressBatch) && copyOrPromoteInProgressBatch.length > 0) {
                 responsePayload = `Promote or Copy Action already in progress for project: ${project} for Batch: ${copyOrPromoteInProgressBatch[0]}, not triggering another action until it completes`;
@@ -129,4 +129,4 @@ async function main(params) {
     };
 }
 
-exports.main = main;
+export { main };

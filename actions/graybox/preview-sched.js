@@ -16,9 +16,9 @@
 ************************************************************************* */
 
 // eslint-disable-next-line import/no-extraneous-dependencies
-const openwhisk = require('openwhisk');
-const { getAioLogger } = require('../utils');
-const initFilesWrapper = require('./filesWrapper');
+import openwhisk from 'openwhisk';
+import { getAioLogger } from '../utils.js';
+import initFilesWrapper from './filesWrapper.js';
 
 async function main(params) {
     const logger = getAioLogger();
@@ -109,4 +109,4 @@ async function main(params) {
     };
 }
 
-exports.main = main;
+export { main };

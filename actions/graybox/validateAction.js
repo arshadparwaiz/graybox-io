@@ -15,9 +15,9 @@
 * from Adobe.
 ************************************************************************* */
 
-const AppConfig = require('../appConfig');
-const GrayboxUser = require('../grayboxUser');
-const { getAioLogger } = require('../utils');
+import AppConfig from '../appConfig.js';
+import GrayboxUser from '../grayboxUser.js';
+import { getAioLogger } from '../utils.js';
 
 function isGrayboxParamsValid(params) {
     const {
@@ -67,6 +67,4 @@ async function validateAction(params, grpIds, ignoreUserCheck = false) {
     };
 }
 
-module.exports = {
-    validateAction
-};
+export default validateAction;

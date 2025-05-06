@@ -15,9 +15,7 @@
 * from Adobe.
 ************************************************************************* */
 
-const {
-    getAioLogger
-} = require('../utils');
+import { getAioLogger } from '../utils.js';
 
 /**
  * Checks the expiration status of keys stored in .env file
@@ -26,8 +24,8 @@ const {
  * @returns {object} Response containing the status of each key
  */
 async function main(params) {
-    const logger = getAioLogger();
     try {
+        const logger = getAioLogger();
         const keysToCheck = {};
 
         let helixKeys = {};
@@ -130,4 +128,4 @@ async function main(params) {
     }
 }
 
-module.exports = { main };
+export { main };

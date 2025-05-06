@@ -15,8 +15,8 @@
 * from Adobe.
 ************************************************************************* */
 
-const fetch = require('node-fetch');
-const { getAioLogger, delay } = require('./utils');
+import fetch from 'node-fetch';
+import { getAioLogger, delay } from './utils.js';
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY = 5;
@@ -175,4 +175,4 @@ class HelixUtils {
     }
 }
 
-module.exports = HelixUtils;
+export default HelixUtils;

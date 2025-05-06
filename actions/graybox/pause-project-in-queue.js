@@ -16,8 +16,8 @@
 ************************************************************************* */
 
 // eslint-disable-next-line import/no-extraneous-dependencies
-const initFilesWrapper = require('./filesWrapper');
-const { getAioLogger } = require('../utils');
+import initFilesWrapper from './filesWrapper.js';
+import { getAioLogger } from '../utils.js';
 /**
  * This Action Sets the project status to paused in Project Queue & the Project Status JSON of that project
  */
@@ -78,4 +78,4 @@ async function main(params) {
     };
 }
 
-exports.main = main;
+export { main };

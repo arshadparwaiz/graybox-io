@@ -15,10 +15,8 @@
  * from Adobe.
  ************************************************************************* */
 
-const initFilesWrapper = require('./filesWrapper');
-const {
-    getAioLogger
-} = require('../utils');
+import initFilesWrapper from './filesWrapper.js';
+import { getAioLogger } from '../utils.js';
 
 async function main(params) {
     const logger = getAioLogger();
@@ -110,4 +108,4 @@ async function main(params) {
     };
 }
 
-exports.main = main;
+export { main };

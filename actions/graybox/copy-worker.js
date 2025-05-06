@@ -15,10 +15,10 @@
 * from Adobe.
 ************************************************************************* */
 
-const { getAioLogger, toUTCStr } = require('../utils');
-const AppConfig = require('../appConfig');
-const Sharepoint = require('../sharepoint');
-const initFilesWrapper = require('./filesWrapper');
+import { getAioLogger, toUTCStr } from '../utils.js';
+import AppConfig from '../appConfig.js';
+import Sharepoint from '../sharepoint.js';
+import initFilesWrapper from './filesWrapper.js';
 
 const logger = getAioLogger();
 
@@ -131,7 +131,7 @@ async function main(params) {
     // Update the Project Excel with the Promote Status
     try {
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
-        const promoteExcelValues = [[`Step 4 of 5: Promote Copy completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses]];
+        const promoteExcelValues = [[`Step 4 of 5: Promote Copy completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, '']];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
     } catch (err) {
         logger.error(`Error Occured while updating Excel during Graybox Promote Copy: ${err}`);
@@ -173,4 +173,4 @@ function exitAction(resp) {
     return resp;
 }
 
-exports.main = main;
+export { main };
