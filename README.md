@@ -1,4 +1,4 @@
-# graybox
+# Graybox
 
 Welcome to my Adobe I/O Application!
 
