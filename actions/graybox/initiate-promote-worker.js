@@ -46,6 +46,8 @@ async function main(params) {
     const sharepoint = new Sharepoint(appConfig);
     const project = `${gbRootFolder}/${experienceName}`;
 
+    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, {});
+
     try {
         // Update Promote Status
         const promoteTriggeredExcelValues = [['Promote triggered', toUTCStr(new Date()), '', '']];
@@ -59,13 +61,14 @@ async function main(params) {
 
     // Get all files in the graybox folder for the specific experience name
     // NOTE: This does not capture content inside the locale/expName folders yet
-    const gbFiles = await findAllFiles(experienceName, appConfig, sharepoint);
+    const { gbFiles, gbFilesMetadata } = await findAllFiles(experienceName, appConfig, sharepoint);
     const grayboxFilesToBePromoted = [['Graybox files to be promoted', toUTCStr(new Date()), '', JSON.stringify(gbFiles)]];
     await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', grayboxFilesToBePromoted);
 
     // Write all the files to a master list file
     await filesWrapper.writeFile(`graybox_promote${project}/master_list.json`, gbFiles);
-
+    const gbFilesMetadataObject = { sourceMetadata: gbFilesMetadata };
+    await filesWrapper.writeFile(`graybox_promote${project}/master_list_metadata.json`, gbFilesMetadataObject);
     // Create Batch Status JSON
     const batchStatusJson = {};
 
@@ -147,9 +150,13 @@ async function main(params) {
     logger.info(`In Initiate Promote Worker, Project Queue Json: ${JSON.stringify(projectQueue)}`);
 
     // Create Project Status JSON
-    const projectStatusJson = { status: 'initiated', params: inputParams };
-
-    logger.info(`In Initiate Promote Worker, projectStatusJson: ${JSON.stringify(projectStatusJson)}`);
+    const projectStatusJson = { status: 'initiated', params: inputParams, statuses: [
+        {
+            stepName: 'initiated',
+            step: 'Found files to promote',
+            timestamp: toUTCStr(new Date()),
+            files: gbFiles
+        }] };
 
     // write to JSONs to AIO Files for Projects Queue and Project Status
     await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
@@ -210,6 +217,7 @@ async function findAllGrayboxFiles({
     const pPathRegExp = new RegExp(`.*:${gbRoot}`);
     const pathsToSelectRegExp = new RegExp(`^\\/(?:langstore\\/[^/]+|[^/]+)?\\/?${experienceName}\\/.+$`);
     const gbFiles = [];
+    const gbFilesMetadata = [];
     // gbFolders = ['/sabya']; // TODO: Used for quick debugging. Uncomment only during local testing.
     while (gbFolders.length !== 0) {
         const uri = `${baseURI}${gbFolders.shift()}:/children?$top=${MAX_CHILDREN}`;
@@ -229,9 +237,13 @@ async function findAllGrayboxFiles({
                         // it is a folder
                         gbFolders.push(itemPath);
                     } else if (pathsToSelectRegExp.test(itemPath)) {
-                        // const downloadUrl = `${downloadBaseURI}/${item.id}/content`;
-                        // eslint-disable-next-line no-await-in-loop
-                        // gbFiles.push({ fileDownloadUrl: downloadUrl, filePath: itemPath });
+                        const simplifiedMetadata = {
+                            createdDateTime: item.createdDateTime,
+                            lastModifiedDateTime: item.lastModifiedDateTime,
+                            fullPath: itemPath,
+                            path: itemPath.replace(`/${experienceName}`, '')
+                        };
+                        gbFilesMetadata.push(simplifiedMetadata);
                         gbFiles.push(itemPath);
                     }
                 } else {
@@ -240,7 +252,7 @@ async function findAllGrayboxFiles({
             }
         }
     }
-    return gbFiles;
+    return { gbFiles, gbFilesMetadata };
 }
 
 export { main };

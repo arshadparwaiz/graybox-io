@@ -36,7 +36,6 @@ let firstGtRows = [];
 async function updateDocument(content, expName, hlxAdminApiKey) {
     firstGtRows = [];
     let docx;
-
     const state = { content: { data: content }, log: '' };
     await parseMarkdown(state);
     const { mdast } = state.content;

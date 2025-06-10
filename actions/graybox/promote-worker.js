@@ -19,6 +19,8 @@ import { getAioLogger, toUTCStr } from '../utils.js';
 import AppConfig from '../appConfig.js';
 import Sharepoint from '../sharepoint.js';
 import initFilesWrapper from './filesWrapper.js';
+import { checkAndCompareFileDates, updateExcelWithNewerFiles } from './fileComparisonUtils.js';
+import { writeProjectStatus } from './statusUtils.js';
 
 const logger = getAioLogger();
 
@@ -35,6 +37,7 @@ async function main(params) {
     let responsePayload;
     let promotes = [];
     const failedPromotes = [];
+    const newerDestinationFiles = [];
 
     const project = params.project || '';
     const batchName = params.batchName || '';
@@ -82,7 +85,16 @@ async function main(params) {
         // eslint-disable-next-line no-await-in-loop
         const promoteFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/${folderType}${promoteFilePath}`);
         if (promoteFile) {
-            // eslint-disable-next-line no-await-in-loop
+            // Check file existence and compare dates
+            const { newerDestinationFiles: newFiles } = await checkAndCompareFileDates({
+                sharepoint,
+                filesWrapper,
+                project,
+                filePath: promoteFilePath
+            });
+            newerDestinationFiles.push(...newFiles);
+            
+            // If file doesn't exist or we're overwriting it anyway
             const saveStatus = await sharepoint.saveFileSimple(promoteFile, promoteFilePath);
 
             if (saveStatus?.success) {
@@ -93,6 +105,18 @@ async function main(params) {
                 failedPromotes.push(promoteFilePath);
             }
         }
+    }
+
+    // Update the Excel with newer destination files
+    if (newerDestinationFiles.length > 0) {
+        await updateExcelWithNewerFiles({
+            sharepoint,
+            projectExcelPath,
+            newerDestinationFiles,
+            workerType: 'promote',
+            experienceName,
+            filesWrapper
+        });
     }
 
     // Wait for all the promises to resolve
@@ -145,8 +169,18 @@ async function main(params) {
     // Update the Project Excel with the Promote Status
     try {
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
-        const promoteExcelValues = [[`Step 3 of 5: Promote completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, '']];
+        const promoteExcelValues = [[`Step 3 of 5: Promote completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, JSON.stringify(promotes)]];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
+
+        // Write status to status.json
+        const statusJsonPath = `graybox_promote${gbRootFolder}/${experienceName}/status.json`;
+        const statusEntry = {
+            step: `Step 3 of 5: Promote completed for Batch ${batchName}`,
+            stepName: 'promoted',
+            failures: sFailedPromoteStatuses,
+            files: promotes
+        };
+        await writeProjectStatus(filesWrapper, statusJsonPath, statusEntry);
     } catch (err) {
         logger.error(`Error Occured while updating Excel during Graybox Promote: ${err}`);
     }

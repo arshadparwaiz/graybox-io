@@ -19,6 +19,8 @@ import { getAioLogger, toUTCStr } from '../utils.js';
 import AppConfig from '../appConfig.js';
 import Sharepoint from '../sharepoint.js';
 import initFilesWrapper from './filesWrapper.js';
+import { checkAndCompareFileDates, updateExcelWithNewerFiles } from './fileComparisonUtils.js';
+import { writeProjectStatus } from './statusUtils.js';
 
 const logger = getAioLogger();
 
@@ -62,8 +64,20 @@ async function main(params) {
 
     // Process the Copy Content
     const copyFilePathsJson = copyBatchJson.files || [];
+    const newerDestinationFiles = [];
+
     for (let i = 0; i < copyFilePathsJson.length; i += 1) {
         const copyPathsEntry = copyFilePathsJson[i];
+        
+        // Check file existence and compare dates
+        const { newerDestinationFiles: newFiles } = await checkAndCompareFileDates({
+            sharepoint,
+            filesWrapper,
+            project,
+            filePath: copyPathsEntry.copyDestFilePath
+        });
+        newerDestinationFiles.push(...newFiles);
+
         // Download the grayboxed file and save it to default content location
         // eslint-disable-next-line no-await-in-loop
         const { fileDownloadUrl } = await sharepoint.getFileData(copyPathsEntry.copySourceFilePath, true);
@@ -79,6 +93,18 @@ async function main(params) {
         } else {
             failedPromotes.push(copyPathsEntry.copyDestFilePath);
         }
+    }
+
+    // Update the Excel with newer destination files
+    if (newerDestinationFiles.length > 0) {
+        await updateExcelWithNewerFiles({
+            sharepoint,
+            projectExcelPath,
+            newerDestinationFiles,
+            workerType: 'copy',
+            experienceName,
+            filesWrapper
+        });
     }
 
     logger.info(`In Copy Worker, Promotes for project: ${project} for batchname ${batchName} no.of files ${promotes.length}, files list: ${JSON.stringify(promotes)}`);
@@ -124,15 +150,25 @@ async function main(params) {
         const allBatchesPromoted = Object.keys(batchStatusJson).every((key) => batchStatusJson[key] === 'promoted');
         if (allBatchesPromoted) {
             // Update the Project Status in JSON files
-            updateProjectStatus(gbRootFolder, experienceName, filesWrapper);
+            await updateProjectStatus(gbRootFolder, experienceName, filesWrapper);
         }
     }
 
     // Update the Project Excel with the Promote Status
     try {
         const sFailedPromoteStatuses = failedPromotes.length > 0 ? `Failed Promotes: \n${failedPromotes.join('\n')}` : '';
-        const promoteExcelValues = [[`Step 4 of 5: Promote Copy completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, '']];
+        const promoteExcelValues = [[`Step 4 of 5: Promote Copy completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedPromoteStatuses, JSON.stringify(promotes)]];
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', promoteExcelValues);
+
+        // Write status to status.json
+        const statusJsonPath = `graybox_promote${gbRootFolder}/${experienceName}/status.json`;
+        const statusEntry = {
+            stepName: 'promote_copy_completed',
+            step: `Step 4 of 5: Promote Copy completed for Batch ${batchName}`,
+            failures: sFailedPromoteStatuses,
+            files: promotes
+        };
+        await writeProjectStatus(filesWrapper, statusJsonPath, statusEntry);
     } catch (err) {
         logger.error(`Error Occured while updating Excel during Graybox Promote Copy: ${err}`);
     }

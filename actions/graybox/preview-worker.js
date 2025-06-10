@@ -20,6 +20,7 @@ import AppConfig from '../appConfig.js';
 import HelixUtils from '../helixUtils.js';
 import Sharepoint from '../sharepoint.js';
 import initFilesWrapper from './filesWrapper.js';
+import { writeProjectStatus } from './statusUtils.js';
 
 const logger = getAioLogger();
 
@@ -66,9 +67,13 @@ async function main(params) {
             // iterate over batch_status.json file and process each batch
             if (projectStatusJson.status === 'initiated') {
                 const toBeStatus = 'initial_preview_in_progress';
-                // Update the In Progress Status in the current project's "status.json" file
-                projectStatusJson.status = toBeStatus;
-                await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
+                const statusEntry = {
+                    step: 'Initial Preview of Graybox started',
+                    stepName: 'initial_preview_in_progress',
+                    files: []
+                };
+                
+                await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, toBeStatus);   
 
                 // Update the Project Status in the parent "project_queue.json" file
                 await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
@@ -84,8 +89,13 @@ async function main(params) {
                 await retryFailedPreviews(isGraybox);
             } else if (projectStatusJson.status === 'promoted') {
                 // Update the In Progress Status in the current project's "status.json" file
-                projectStatusJson.status = 'final_preview_in_progress';
-                await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
+                const statusEntry = {
+                    step: 'Final Preview of Promoted Content started',
+                    stepName: 'final_preview_in_progress',
+                    files: []
+                };
+
+                await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, 'final_preview_in_progress');
 
                 // Perform Final Preview
                 const promotedPathsJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/promoted_paths.json`);
@@ -131,7 +141,7 @@ async function main(params) {
             await filesWrapper.writeFile(`graybox_promote${project}/preview_errors.json`, previewErrorsJson.concat(failedPreviews));
 
             // Update the Project Status in the current project's "status.json" file & the parent "project_queue.json" file
-            await updateProjectStatus(project, filesWrapper);
+            await updateProjectStatus(project, filesWrapper, previewStatuses, failedPreviews);
 
             try {
                 logger.info('Updating project excel file with status');
@@ -146,6 +156,7 @@ async function main(params) {
                 }
                 // Update Preview Status
                 await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelValues);
+
             } catch (err) {
                 logger.error(`Error Occured while updating Excel during Graybox Preview: ${err}`);
             }
@@ -264,7 +275,7 @@ async function main(params) {
  * @param {*} filesWrapper filesWrapper object
  * @returns updated project status
  */
-async function updateProjectStatus(project, filesWrapper) {
+async function updateProjectStatus(project, filesWrapper, previewStatuses, failedPreviews) {
     const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
 
     // Update the Project Status in the current project's "status.json" file
@@ -276,10 +287,16 @@ async function updateProjectStatus(project, filesWrapper) {
         toBeStatus = 'final_preview_done';
     }
 
+    logger.info(`In Preview-sched Preview Statuses: ${JSON.stringify(previewStatuses)}`);
     if (toBeStatus) {
-        projectStatusJson.status = toBeStatus;
+        const statusEntry = {
+            step: 'Preview Completed',
+            stepName: toBeStatus,
+            files: [],
+            failures: failedPreviews.length > 0 ? `Failed Previews: \n${failedPreviews.join('\n')}` : ''
+        };
+        await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, toBeStatus);
         logger.info(`In Preview-sched After Processing Preview, Project Status Json: ${JSON.stringify(projectStatusJson)}`);
-        await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
 
         // Update the Project Status in the parent "project_queue.json" file
         await changeProjectStatusInQueue(filesWrapper, project, toBeStatus);

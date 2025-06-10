@@ -18,6 +18,8 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import initFilesWrapper from './filesWrapper.js';
 import { getAioLogger } from '../utils.js';
+import { writeProjectStatus } from './statusUtils.js';
+
 /**
  * This Action Sets the project status to paused in Project Queue & the Project Status JSON of that project
  */
@@ -47,10 +49,15 @@ async function main(params) {
                 await filesWrapper.writeFile(projectQueuePath, projectQueue);
                 const project = projectQueue[index].projectPath;
                 logger.info(`In Pause Project Action, After pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
-                const projectStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/status.json`);
                 logger.info(`In Pause Graybox Project, Before Pausing Project Status Json: ${JSON.stringify(projectStatusJson)}`);
-                projectStatusJson.status = 'paused';
-                await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusJson);
+                const statusJsonPath = `graybox_promote/${project}/status.json`;
+                const statusEntry = {
+                    step: 'Project paused',
+                    stepName: 'paused',
+                    projectPath: project,
+                };
+
+                await writeProjectStatus(filesWrapper, statusJsonPath, statusEntry, 'paused');
             } else {
                 responsePayload = `Project Queue empty. No project with ${projectPath} path exists`;
                 return {
