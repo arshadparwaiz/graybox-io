@@ -49,7 +49,7 @@ async function main(params) {
                 await filesWrapper.writeFile(projectQueuePath, projectQueue);
                 const project = projectQueue[index].projectPath;
                 logger.info(`In Pause Project Action, After pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
-                logger.info(`In Pause Graybox Project, Before Pausing Project Status Json: ${JSON.stringify(projectStatusJson)}`);
+                // logger.info(`In Pause Graybox Project, Before Pausing Project Status Json: ${JSON.stringify(projectStatusJson)}`);
                 const statusJsonPath = `graybox_promote/${project}/status.json`;
                 const statusEntry = {
                     step: 'Project paused',
