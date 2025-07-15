@@ -102,7 +102,7 @@ async function main(params) {
             } else if (saveStatus?.errorMsg?.includes('File is locked')) {
                 failedPromotes.push(`${promoteFilePath} (locked file)`);
             } else {
-                failedPromotes.push(promoteFilePath);
+                failedPromotes.push(`${promoteFilePath} (failed with reason: ${saveStatus?.errorMsg})`);
             }
         }
     }

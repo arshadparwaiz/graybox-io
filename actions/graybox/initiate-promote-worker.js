@@ -39,14 +39,27 @@ async function main(params) {
 
     const appConfig = new AppConfig(params);
     const {
-        driveId, adminPageUri, rootFolder, gbRootFolder, promoteIgnorePaths, experienceName, projectExcelPath, draftsOnly
+        driveId, adminPageUri, rootFolder, gbRootFolder, promoteIgnorePaths, experienceName, projectExcelPath
     } = appConfig.getPayload();
+    const draftsOnly = appConfig.isDraftOnly();
 
     const filesWrapper = await initFilesWrapper(logger);
     const sharepoint = new Sharepoint(appConfig);
     const project = `${gbRootFolder}/${experienceName}`;
 
-    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, {});
+    const projectStatusInitialJson = {
+        status: 'initiated',
+        statuses: [
+            {
+                stepName: 'initiated',
+                step: 'Initiated',
+                timestamp: toUTCStr(new Date()),
+                files: []
+            }
+        ]
+    };
+
+    await filesWrapper.writeFile(`graybox_promote${project}/status.json`, projectStatusInitialJson);
 
     try {
         // Update Promote Status
@@ -61,7 +74,7 @@ async function main(params) {
 
     // Get all files in the graybox folder for the specific experience name
     // NOTE: This does not capture content inside the locale/expName folders yet
-    const { gbFiles, gbFilesMetadata } = await findAllFiles(experienceName, appConfig, sharepoint);
+    const { gbFiles, gbFilesMetadata } = await findAllFiles(experienceName, appConfig, sharepoint, draftsOnly);
     const grayboxFilesToBePromoted = [['Graybox files to be promoted', toUTCStr(new Date()), '', JSON.stringify(gbFiles)]];
     await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', grayboxFilesToBePromoted);
 
@@ -150,13 +163,18 @@ async function main(params) {
     logger.info(`In Initiate Promote Worker, Project Queue Json: ${JSON.stringify(projectQueue)}`);
 
     // Create Project Status JSON
-    const projectStatusJson = { status: 'initiated', params: inputParams, statuses: [
-        {
-            stepName: 'initiated',
-            step: 'Found files to promote',
-            timestamp: toUTCStr(new Date()),
-            files: gbFiles
-        }] };
+    const projectStatusJson = {
+        status: 'initiated',
+        params: inputParams,
+        statuses: [
+            {
+                stepName: 'initiated',
+                step: 'Found files to promote',
+                timestamp: toUTCStr(new Date()),
+                files: gbFiles
+            }
+        ]
+    };
 
     // write to JSONs to AIO Files for Projects Queue and Project Status
     await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
@@ -189,7 +207,7 @@ async function main(params) {
 /**
  * Find all files in the Graybox tree to promote.
  */
-async function findAllFiles(experienceName, appConfig, sharepoint) {
+async function findAllFiles(experienceName, appConfig, sharepoint, draftsOnly) {
     const sp = await appConfig.getSpConfig();
     const options = await sharepoint.getAuthorizedRequestOption({ method: 'GET' });
     const promoteIgnoreList = appConfig.getPromoteIgnorePaths();
@@ -198,10 +216,11 @@ async function findAllFiles(experienceName, appConfig, sharepoint) {
     return findAllGrayboxFiles({
         baseURI: sp.api.file.get.gbBaseURI,
         options,
-        gbFolders: appConfig.isDraftOnly() ? [`/${experienceName}/drafts`] : [''],
+        gbFolders: [''],
         promoteIgnoreList,
         experienceName,
-        sharepoint
+        sharepoint,
+        draftsOnly
     });
 }
 
@@ -209,13 +228,26 @@ async function findAllFiles(experienceName, appConfig, sharepoint) {
  * Iteratively finds all files under a specified root folder.
  */
 async function findAllGrayboxFiles({
-    baseURI, options, gbFolders, promoteIgnoreList, experienceName, sharepoint
+    baseURI, options, gbFolders, promoteIgnoreList, experienceName, sharepoint, draftsOnly
 }) {
     const gbRoot = baseURI.split(':').pop();
     // Regular expression to select the gbRoot and anything before it
     // Eg: the regex selects "https://<sharepoint-site>:/<app>-graybox"
     const pPathRegExp = new RegExp(`.*:${gbRoot}`);
-    const pathsToSelectRegExp = new RegExp(`^\\/(?:langstore\\/[^/]+|[^/]+)?\\/?${experienceName}\\/.+$`);
+
+    // Create different regex patterns based on draftsOnly flag
+    // Escape special regex characters in experience name
+    const escapedExperienceName = experienceName.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+    let pathsToSelectRegExp;
+    if (draftsOnly) {
+        // Only match files inside the drafts folder of the experience at any depth
+        pathsToSelectRegExp = new RegExp(`.*\\/${escapedExperienceName}\\/drafts\\/.+$`);
+    } else {
+        // Match all files under the experience folder at any depth
+        pathsToSelectRegExp = new RegExp(`.*\\/${escapedExperienceName}\\/.+$`);
+    }
+
+    logger.info(`Experience name: ${experienceName}, DraftsOnly: ${draftsOnly}, Escaped: ${escapedExperienceName}, Regex: ${pathsToSelectRegExp}`);
     const gbFiles = [];
     const gbFilesMetadata = [];
     // gbFolders = ['/sabya']; // TODO: Used for quick debugging. Uncomment only during local testing.
@@ -232,11 +264,14 @@ async function findAllGrayboxFiles({
             for (let di = 0; di < driveItems?.length; di += 1) {
                 const item = driveItems[di];
                 const itemPath = `${item.parentReference.path.replace(pPathRegExp, '')}/${item.name}`;
+                logger.info(`Processing item: ${item.name}, Parent path: ${item.parentReference.path}, Constructed path: ${itemPath}, Is folder: ${!!item.folder}`);
                 if (!isFilePatternMatched(itemPath, promoteIgnoreList)) {
                     if (item.folder) {
                         // it is a folder
+                        logger.info(`Adding folder to queue: ${itemPath}`);
                         gbFolders.push(itemPath);
                     } else if (pathsToSelectRegExp.test(itemPath)) {
+                        logger.info(`Found file from experience folder ${experienceName} : ${itemPath}`);
                         const simplifiedMetadata = {
                             createdDateTime: item.createdDateTime,
                             lastModifiedDateTime: item.lastModifiedDateTime,
@@ -245,8 +280,9 @@ async function findAllGrayboxFiles({
                         };
                         gbFilesMetadata.push(simplifiedMetadata);
                         gbFiles.push(itemPath);
+                    } else {
+                        logger.info(`File path ${itemPath} does not match regex ${pathsToSelectRegExp}`);
                     }
-                } else {
                     logger.info(`Ignored from promote: ${itemPath}`);
                 }
             }
