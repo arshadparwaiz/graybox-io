@@ -15,10 +15,9 @@
 * from Adobe.
 ************************************************************************* */
 
-import { Headers } from 'node-fetch';
-import fetch from 'node-fetch';
-import { getAioLogger } from './utils.js';
+import fetch, { Headers } from 'node-fetch';
 import SharepointAuth from './sharepointAuth.js';
+import { getAioLogger } from './utils.js';
 
 const SP_CONN_ERR_LST = ['ETIMEDOUT', 'ECONNRESET'];
 const APP_USER_AGENT = 'NONISV|Adobe|MiloFloodgate/0.1.0';
@@ -196,26 +195,49 @@ class Sharepoint {
 
     async saveFileSimple(file, dest, isGraybox) {
         try {
+            if (!file) {
+                logger.error('No file content provided');
+                return { success: false, path: dest, errorMsg: 'No file content provided' };
+            }
+
             const folder = this.getFolderFromPath(dest);
             const filename = this.getFileNameFromPath(dest);
-            logger.info(`Saving file ${filename} to ${folder}`);
-            await this.createFolder(folder, isGraybox);
-            const sp = await this.appConfig.getSpConfig();
 
+            // Ensure destination folder exists
+            try {
+                await this.createFolder(folder, isGraybox);
+                logger.info(`Folder created: ${folder}`);
+            } catch (error) {
+                logger.error(`Error creating folder ${folder}: ${error.message}`);
+                return { success: false, path: dest, errorMsg: `Failed to create destination folder: ${error.message}` };
+            }
+
+            const sp = await this.appConfig.getSpConfig();
             const uploadFileStatus = await this.createSessionAndUploadFile(sp, file, dest, filename, isGraybox);
+
             if (uploadFileStatus.locked) {
-                logger.info(`Locked file detected: ${dest}`);
                 return { success: false, path: dest, errorMsg: 'File is locked' };
             }
+
             const uploadedFileJson = uploadFileStatus.uploadedFile;
             if (uploadedFileJson) {
-                return { success: true, uploadedFileJson, path: dest };
+                return {
+                    success: true,
+                    uploadedFileJson,
+                    path: dest,
+                    metadata: {
+                        name: uploadedFileJson.name,
+                        size: uploadedFileJson.size,
+                        lastModifiedDateTime: uploadedFileJson.lastModifiedDateTime
+                    }
+                };
             }
+
+            return { success: false, path: dest, errorMsg: 'Upload failed' };
         } catch (error) {
-            logger.info(`Error while saving file: ${dest} ::: ${error.message}`);
+            logger.error(`Error while saving file: ${dest} ::: ${error.message}`);
             return { success: false, path: dest, errorMsg: error.message };
         }
-        return { success: false, path: dest };
     }
 
     async updateExcelTable(excelPath, tableName, values) {
@@ -249,7 +271,6 @@ class Sharepoint {
                     const retryAfter = resp.headers.get('ratelimit-reset') || resp.headers.get('retry-after') || 0;
                     if ((resp.headers.get('test-retry-status') === TOO_MANY_REQUESTS) || (resp.status === TOO_MANY_REQUESTS)) {
                         nextCallAfter = Date.now() + retryAfter * 1000;
-                        logger.info(`Retry ${nextCallAfter}`);
                         this.fetchWithRetry(apiUrl, options, retryCount)
                             .then((newResp) => resolve(newResp))
                             .catch((err) => reject(err));
@@ -260,7 +281,6 @@ class Sharepoint {
                 }).catch((err) => {
                     logger.warn(`Connection error ${apiUrl} with ${JSON.stringify(err)}`);
                     if (err && SP_CONN_ERR_LST.includes(err.code) && retryCount < NUM_REQ_THRESHOLD) {
-                        logger.info(`Retry ${SP_CONN_ERR_LST}`);
                         nextCallAfter = Date.now() + RETRY_ON_CF * 1000;
                         return this.fetchWithRetry(apiUrl, options, retryCount)
                             .then((newResp) => resolve(newResp))
