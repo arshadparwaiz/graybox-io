@@ -44,6 +44,7 @@ async function main(params) {
                 }
             };
         }
+        logger.info(`In Bulk Copy, sourcePaths: ${JSON.stringify(sourcePaths)}`);
 
         try {
             const processedSourcePaths = sourcePaths.map((path) => {
@@ -56,12 +57,14 @@ async function main(params) {
                             if (!fullPath.includes('.')) {
                                 return {
                                     sourcePath: `${fullPath}.docx`,
-                                    destinationPath: `/${params?.experienceName}${fullPath}.docx`
+                                    destinationPath: `/${params?.experienceName}${fullPath}.docx`,
+                                    mdPath: `${path}.md`
                                 };
                             }
                             return {
                                 sourcePath: fullPath,
-                                destinationPath: `/${params?.experienceName}${fullPath}`
+                                destinationPath: `/${params?.experienceName}${fullPath}`,
+                                mdPath: `${path}.md`
                             };
                         }
                     }
@@ -73,7 +76,8 @@ async function main(params) {
             });
 
             const workerResponse = await ow.actions.invoke({
-                name: 'graybox/bulk-copy-worker',
+                // name: 'graybox/bulk-copy-worker',
+                name: 'graybox/initiate-bulk-copy-worker',
                 blocking: false,
                 result: false,
                 params: {

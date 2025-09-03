@@ -33,7 +33,7 @@ let firstGtRows = [];
  * @param {object} options - The options for fetching the Markdown file.
  * @returns {Promise} - A promise that resolves to the generated Docx file.
  */
-async function updateDocument(content, expName, hlxAdminApiKey) {
+async function updateDocumentForPromote(content, expName, hlxAdminApiKey) {
     firstGtRows = [];
     let docx;
     const state = { content: { data: content }, log: '' };
@@ -65,7 +65,6 @@ async function updateDocument(content, expName, hlxAdminApiKey) {
  * Replace all relative link references in the given mdast with the provided experience name and graybox style pattern.
  * @param {Array} mdast - The mdast to be updated.
  * @param {string} expName - The name of the experience.
- * @param {RegExp} grayboxStylePattern - The pattern to match graybox styles.
  */
 const updateExperienceNameFromLinks = (mdast, expName) => {
     if (mdast) {
@@ -94,6 +93,57 @@ const updateExperienceNameFromLinks = (mdast, expName) => {
         });
     }
 };
+
+/**
+ * Adds Experience Name to all Fragment Path Links.
+ * @param {Array} mdast - The mdast to be updated.
+ * @param {string} expName - The name of the experience.
+ */
+const addExperienceNameToFragmentLinks = (mdast, expName) => {
+    if (mdast) {
+        mdast.forEach((child) => {
+            if (child.type === 'gridTable') {
+                firstGtRows.push(findFirstGtRowInNode(child));
+            }
+            // Process link URLs
+            if (child.type === 'link' && child.url && (child.url.includes(expName) || child.url.includes(gbDomainSuffix))) {
+                child.url = child.url.replaceAll(`/fragments/`, `/${expName}/fragments/`, '/').replaceAll(gbDomainSuffix, emptyString);
+            }
+
+            if (child.children) {
+                addExperienceNameToFragmentLinks(child.children, expName);
+            }
+        });
+    }
+};
+/**
+ * During Bulk Copy form Main to Graybox, Updates a document's Fragment paths to Graybox fragment paths.
+ * @param {string} mdPath - The path to the Markdown file.
+ * @param {string} experienceName - The name of the experience.
+ * @param {object} options - The options for fetching the Markdown file.
+ * @returns {Promise} - A promise that resolves to the generated Docx file.
+ */
+async function updateDocumentForBulkCopy(content, expName, hlxAdminApiKey) {
+    firstGtRows = [];
+    let docx;
+    const state = { content: { data: content }, log: '' };
+    await parseMarkdown(state);
+    const { mdast } = state.content;
+    const mdastChildren = mdast.children;
+
+    // Add Expwerience Name to Graybox Fragment Links
+    addExperienceNameToFragmentLinks(mdastChildren, expName);
+
+    try {
+        // generated docx file from updated mdast
+        docx = await generateDocxFromMdast(mdast, hlxAdminApiKey);
+    } catch (err) {
+        // Mostly bad string ignored
+        logger.debug(`Error while generating docxfromdast ${err}`);
+    }
+
+    return docx;
+}
 
 /**
  * Helper function, iterates through the firstGtRows array and replaces graybox styles for each row.
@@ -209,5 +259,6 @@ async function generateDocxFromMdast(mdast, hlxAdminApiKey) {
 }
 
 export {
-    updateDocument,
+    updateDocumentForPromote as updateDocumentForPromote,
+    updateDocumentForBulkCopy as updateDocumentForBulkCopy,
 };

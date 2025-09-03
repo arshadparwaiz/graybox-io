@@ -23,12 +23,12 @@ import { toUTCStr } from '../utils.js';
 
 const logger = getAioLogger();
 async function main(params) {
-    logger.info('Graybox Bulk Copy Worker triggered');
+    logger.info(`Graybox Bulk Copy Worker triggered .. params: ${JSON.stringify(params)}`);
     const appConfig = new AppConfig(params);
     const sharepoint = new Sharepoint(appConfig);
     const filesWrapper = await initFilesWrapper(logger);
     const {
-        gbRootFolder, experienceName, projectExcelPath
+        rootFolder, gbRootFolder, experienceName, projectExcelPath
     } = appConfig.getPayload();
 
     const project = `${gbRootFolder}/${experienceName}`;
@@ -69,6 +69,15 @@ async function main(params) {
         currentStatus.status = 'processing';
         currentStatus.statuses.push(processingStatus);
         await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, currentStatus);
+
+        const inputParams = {};
+        inputParams.sourcePaths = sourcePaths;
+        inputParams.rootFolder = rootFolder;
+        inputParams.gbRootFolder = gbRootFolder;
+        inputParams.projectExcelPath = projectExcelPath;
+        inputParams.experienceName = experienceName;
+        inputParams.adminPageUri = adminPageUri;
+        inputParams.driveId = driveId;
 
         await Promise.all(sourcePaths.map(async (pathInfo) => {
             try {
