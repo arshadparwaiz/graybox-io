@@ -188,6 +188,27 @@ application:
             annotations:
               require-adobe-auth: false
               final: true
+          bulk-copy-processed-worker:
+            function: actions/graybox/bulk-copy-processed-worker.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          bulk-copy-processed-sched:
+            function: actions/graybox/bulk-copy-processed-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true
         triggers:
           everyMin:
             feed: /whisk.system/alarms/interval
@@ -209,3 +230,6 @@ application:
           everyMinBulkCopyDocxRule:
             trigger: everyMin
             action: bulk-copy-process-docx-sched
+          everyMinBulkCopyProcessedRule:
+            trigger: everyMin
+            action: bulk-copy-processed-sched

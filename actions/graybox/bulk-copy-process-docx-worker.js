@@ -404,39 +404,45 @@ logger.info('Source Path Objs: ', JSON.stringify(sourcePathObjs));
     const promotes = [];
     const failedPromotes = [];
 
+
+
+// Commenting the Save file code from process worker as we are not promoting the files here
+
+
+
     // Collect all promises from the forEach loop
     // eslint-disable-next-line no-restricted-syntax
-    for (const processedFilePathObj of processedFilePathObjs) {
-        const { sourcePath, destinationPath } = processedFilePathObj;
-        // Check if the file is a docx or xlsx based on file extension
-        const isExcelFile = sourcePath.toLowerCase().endsWith('.xlsx') || sourcePath.toLowerCase().endsWith('.xls');
-        const folderType = isExcelFile ? 'excel' : 'docx';
-        // eslint-disable-next-line no-await-in-loop
-        // const promoteFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/${folderType}${processedFilePath}`);
-        const processedFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/docx_bulk_copy${sourcePath}`);
-        if (processedFile) {
-            logger.info(`In BulkCopyProcessDocx-worker, processedFile before save`);
-            // Check file existence and compare dates
-            // const { newerDestinationFiles: newFiles } = await checkAndCompareFileDates({
-            //     sharepoint,
-            //     filesWrapper,
-            //     project,
-            //     filePath: processedFilePath
-            // });
-            // newerDestinationFiles.push(...newFiles);
+    // for (const processedFilePathObj of processedFilePathObjs) {
+    //     const { sourcePath, destinationPath } = processedFilePathObj;
+    //     // Check if the file is a docx or xlsx based on file extension
+    //     const isExcelFile = sourcePath.toLowerCase().endsWith('.xlsx') || sourcePath.toLowerCase().endsWith('.xls');
+    //     const folderType = isExcelFile ? 'excel' : 'docx';
+    //     // eslint-disable-next-line no-await-in-loop
+    //     // const promoteFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/${folderType}${processedFilePath}`);
+    //     const processedFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/docx_bulk_copy${sourcePath}`);
+    //     if (processedFile) {
+    //         logger.info(`In BulkCopyProcessDocx-worker, processedFile before save`);
+    //         // Check file existence and compare dates
+    //         // const { newerDestinationFiles: newFiles } = await checkAndCompareFileDates({
+    //         //     sharepoint,
+    //         //     filesWrapper,
+    //         //     project,
+    //         //     filePath: processedFilePath
+    //         // });
+    //         // newerDestinationFiles.push(...newFiles);
             
-            // If file doesn't exist or we're overwriting it anyway
-            const saveStatus = await sharepoint.saveFileSimple(processedFile, destinationPath, true);
+    //         // If file doesn't exist or we're overwriting it anyway
+    //         const saveStatus = await sharepoint.saveFileSimple(processedFile, destinationPath, true);
 
-            if (saveStatus?.success) {
-                promotes.push(destinationPath);
-            } else if (saveStatus?.errorMsg?.includes('File is locked')) {
-                failedPromotes.push(`${destinationPath} (locked file)`);
-            } else {
-                failedPromotes.push(`${destinationPath} (failed with reason: ${saveStatus?.errorMsg})`);
-            }
-        }
-    }
+    //         if (saveStatus?.success) {
+    //             promotes.push(destinationPath);
+    //         } else if (saveStatus?.errorMsg?.includes('File is locked')) {
+    //             failedPromotes.push(`${destinationPath} (locked file)`);
+    //         } else {
+    //             failedPromotes.push(`${destinationPath} (failed with reason: ${saveStatus?.errorMsg})`);
+    //         }
+    //     }
+    // }
 
 }
 
