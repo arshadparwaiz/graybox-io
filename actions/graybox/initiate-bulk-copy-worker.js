@@ -31,8 +31,8 @@ async function main(params) {
     const sharepoint = new Sharepoint(appConfig);
     const filesWrapper = await initFilesWrapper(logger);
     const {
-        rootFolder, gbRootFolder, experienceName, projectExcelPath
-    } = appConfig.getPayload();
+        sourcePaths, rootFolder, gbRootFolder, experienceName, projectExcelPath, driveId, adminPageUri
+    } = params;
 
     const project = `${gbRootFolder}/${experienceName}`;
     // Array to track failed files
@@ -43,11 +43,12 @@ async function main(params) {
     try {
         logger.info('Starting bulk copy worker');
 
-        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, {
-            statuses: []
-        });
+        logger.info(`In Initiate Bulk Copy Worker, params: ${JSON.stringify(params)}`);
+        // await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, {
+        //     statuses: []
+        // });
 
-        const { sourcePaths } = params;
+        // const { sourcePaths } = params;
         const results = {
             successful: [],
             failed: []
@@ -65,7 +66,7 @@ async function main(params) {
         await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, bulkCopyStatus);
 
         // Create Batch Status JSON
-        const batchStatusBulkCopyJson = {};
+        const bulkCopyBatchStatusJson = {};
 
         // Create File Batches JSON
         const fileBatchesJson = {};
@@ -78,7 +79,7 @@ async function main(params) {
             const arrayChunk = sourcePaths.slice(i, i + BATCH_REQUEST_BULK_COPY);
             filesBatchArray.push(arrayChunk);
             const batchName = `batch_${batchCounter}`;
-            batchStatusBulkCopyJson[`${batchName}`] = 'initiated';
+            bulkCopyBatchStatusJson[`${batchName}`] = 'initiated';
 
             // Each Files Batch is written to a batch_n.json file
             writeBatchJsonPromises.push(filesWrapper.writeFile(`graybox_promote${project}/batches_bulk_copy/${batchName}.json`, arrayChunk));
@@ -104,13 +105,15 @@ async function main(params) {
         inputParams.adminPageUri = adminPageUri;
         inputParams.driveId = driveId;
 
+        logger.info(`In Initiate Bulk Copy Worker, Input Params: ${JSON.stringify(inputParams)}`);
+
         // Create Project Queue Json
-        let projectQueueBulkCopy = [];
+        let bulkCopyProjectQueue = [];
         // Read the existing Project Queue Json & then merge the current project to it
-        if (await filesWrapper.fileExists('graybox_promote/project_queue_bulk_copy.json')) {
-            projectQueueBulkCopy = await filesWrapper.readFileIntoObject('graybox_promote/project_queue_bulk_copy.json');
-            if (!projectQueueBulkCopy) {
-                projectQueueBulkCopy = [];
+        if (await filesWrapper.fileExists('graybox_promote/bulk_copy_project_queue.json')) {
+            bulkCopyProjectQueue = await filesWrapper.readFileIntoObject('graybox_promote/bulk_copy_project_queue.json');
+            if (!bulkCopyProjectQueue) {
+                bulkCopyProjectQueue = [];
             }
         }
 
@@ -118,18 +121,18 @@ async function main(params) {
 
         // TODO - check if replacing existing project is needed, if not remove this logic and just add the project to the queue
         // Find the index of the same  experience Project exists, replace it with this one
-        const index = projectQueueBulkCopy.findIndex((obj) => obj.projectPath === `${project}`);
+        const index = bulkCopyProjectQueue.findIndex((obj) => obj.projectPath === `${project}`);
         if (index !== -1) {
             // Replace the object at the found index
-            projectQueueBulkCopy[index] = newProject;
+            bulkCopyProjectQueue[index] = newProject;
         } else {
             // Add the current project to the Project Queue Json & make it the current project
-            projectQueueBulkCopy.push(newProject);
+            bulkCopyProjectQueue.push(newProject);
         }
 
-        logger.info(`In Initiate Bulk Copy Worker, Project Queue Json: ${JSON.stringify(projectQueueBulkCopy)}`);
+        logger.info(`In Initiate Bulk Copy Worker, Project Queue Json: ${JSON.stringify(bulkCopyProjectQueue)}`);
 
-        // // Create Project Status JSON
+        // Create Bulk Copy Project Status JSON
         // const bulkCopyProjectStatusJson = {
         //     status: 'initiated',
         //     params: inputParams,
@@ -143,19 +146,29 @@ async function main(params) {
         //     ]
         // };
 
+        bulkCopyStatus.params = inputParams,
+        bulkCopyStatus.statuses = [
+                {
+                    stepName: 'initiated',
+                    step: 'Found files to copy',
+                    timestamp: toUTCStr(new Date()),
+                    files: sourcePaths
+                }
+            ];
+        
         // write to JSONs to AIO Files for Projects Queue and Project Status
-        await filesWrapper.writeFile('graybox_promote/project_queue_bulk_copy.json', projectQueueBulkCopy);
-        // await filesWrapper.writeFile(`graybox_promote${project}/status.json`, bulkCopyProjectStatusJson);
-        await filesWrapper.writeFile(`graybox_promote${project}/batch_status_bulk_copy.json`, batchStatusBulkCopyJson);
+        await filesWrapper.writeFile('graybox_promote/bulk_copy_project_queue.json', bulkCopyProjectQueue);
+        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, bulkCopyStatus);
+        await filesWrapper.writeFile(`graybox_promote${project}/bulk_copy_batch_status.json`, bulkCopyBatchStatusJson);
 
         // read Graybox Project Json from AIO Files
         const projectStatusBulkCopyJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-        const projectQueueBulkCopyJson = await filesWrapper.readFileIntoObject('graybox_promote/project_queue_bulk_copy.json');
-        const projectBatchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status_bulk_copy.json`);
+        const projectQueueBulkCopyJson = await filesWrapper.readFileIntoObject('graybox_promote/bulk_copy_project_queue.json');
+        const projectBatchStatusJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk_copy_batch_status.json`);
 
         logger.info(`In Initiate Bulk Copy Worker, Project Status Bulk Copy Json: ${JSON.stringify(projectStatusBulkCopyJson)}`);
         logger.info(`In Initiate Bulk Copy Worker, Project Queue Bulk Copy Json: ${JSON.stringify(projectQueueBulkCopyJson)}`);
-        logger.info(`In Initiate Promote Worker, Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
+        logger.info(`In Initiate Bulk Copy Worker, Project Batch Status Json: ${JSON.stringify(projectBatchStatusJson)}`);
     
 
         // await Promise.all(sourcePaths.map(async (pathInfo) => {
@@ -264,11 +277,15 @@ async function main(params) {
         // });
         // await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, finalStatus);
 
+        try {
         excelUpdates.push(['Bulk Copy Initiated', toUTCStr(new Date()), '', '']);
         if (failedFiles.length > 0) {
             excelUpdates.push([`Bulk Copy: ${failedFiles.length} files failed`, toUTCStr(new Date()), 'See individual file errors above', '']);
         }
         await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelUpdates);
+        } catch (error) {
+            logger.error(`Error updating Excel table: ${error.message}`);
+        }
 
         return {
             statusCode: 200,

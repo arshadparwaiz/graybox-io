@@ -29,7 +29,7 @@ async function main(params) {
     const filesWrapper = await initFilesWrapper(logger);
 
     try {
-        const projectQueueBulkCopy = await filesWrapper.readFileIntoObject('graybox_promote/project_queue_bulk_copy.json');
+        const projectQueueBulkCopy = await filesWrapper.readFileIntoObject('graybox_promote/bulk_copy_project_queue.json');
         logger.info(`In Bulk Copy Process Content Sched Project Queue Json: ${JSON.stringify(projectQueueBulkCopy)}`);
 
         if (!projectQueueBulkCopy) {
@@ -46,8 +46,10 @@ async function main(params) {
             .filter((project) => project.status === 'initiated')
             .map((project) => project.projectPath);
 
+            logger.info(`In Bulk Copy Process Content Sched, To Be Processed Projects: ${JSON.stringify(toBeProcessedProjects)}`);
+
         if (!toBeProcessedProjects || toBeProcessedProjects.length === 0) {
-            responsePayload = 'No Bulk Copy Projects in the queue with status initiated';
+            responsePayload = 'No Bulk Copy Projects in the queue with status `initiated`';
             logger.info(responsePayload);
             return {
                 code: 200,
@@ -64,6 +66,9 @@ async function main(params) {
                 params[key] = inputParams[key];
             });
 
+            logger.info(`In Bulk Copy Process Content Sched, Project Status Bulk Copy Json: ${JSON.stringify(projectStatusBulkCopyJson)}`);
+            logger.info(`In Bulk Copy Process Content Sched, Params: ${JSON.stringify(params)}`);
+             
             try {
                 return ow.actions.invoke({
                     name: 'graybox/bulk-copy-process-docx-worker',

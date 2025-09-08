@@ -21,7 +21,7 @@ import { getAioLogger, toUTCStr } from '../utils.js';
 import AppConfig from '../appConfig.js';
 import HelixUtils from '../helixUtils.js';
 import Sharepoint from '../sharepoint.js';
-import { updateDocumentForPromote, updateDocumentForBulkCopy } from '../docxUpdater.js';
+import { updateDocumentForBulkCopy } from '../docxUpdater.js';
 import { updateExcel, convertJsonToExcel } from '../excelHandler.js';
 import initFilesWrapper from './filesWrapper.js';
 import { writeProjectStatus } from './statusUtils.js';
@@ -37,6 +37,8 @@ const logger = getAioLogger();
 async function main(params) {
     logger.info('Graybox Bulk Copy Process Content Action triggered');
 
+    logger.info(`Parameters received: ${JSON.stringify(params, null, 2)}`);
+    
     const appConfig = new AppConfig(params);
     const { gbRootFolder, experienceName, projectExcelPath } = appConfig.getPayload();
 
@@ -48,11 +50,12 @@ async function main(params) {
 
     const project = `${gbRootFolder}/${experienceName}`;
 
-    // Get the Helix Admin API Key for the Graybox content tree, needed for accessing (with auth) Images in graybox tree
-    const helixAdminApiKey = helixUtils.getAdminApiKey(true);
+    // Get the Helix Admin API Key for the main content tree, needed for accessing (with auth) Images in graybox tree
+    const helixAdminApiKey = helixUtils.getAdminApiKey(false);
 
-    // Read the Project Status in the current project's "status.json" file
+    // Read the Project Status in the current project's "bulk-copy-status.json" file
     const projectStatusBulkCopyJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
+    logger.info(`In BulkCopyProcessDocx-worker, Path of bulk-copy-status.json: graybox_promote${project}/bulk-copy-status.json`);
     logger.info(`In BulkCopyProcessDocx-worker, projectStatusJson: ${JSON.stringify(projectStatusBulkCopyJson)}`);
 
     const processFilesParams = {
@@ -65,10 +68,11 @@ async function main(params) {
         gbRootFolder,
         projectExcelPath
     };
-    // Promote Graybox files to the default content tree
+
+    // Process Docx files to transform fragment links
     await processFiles(processFilesParams);
 
-    responsePayload = 'Processing of Graybox Content Tree completed';
+    responsePayload = 'Processing for Frament Paths of Bulk Copy Graybox Content Tree completed';
     logger.info(responsePayload);
     return exitAction({
         body: responsePayload,
@@ -83,29 +87,30 @@ async function main(params) {
 async function processFiles({
     experienceName, helixAdminApiKey, sharepoint, helixUtils, filesWrapper, gbRootFolder, projectExcelPath
 }) {
+    logger.info('Processing files for Fragment Path transformation to include Experience Name');
     const options = {};
     // Passing isGraybox param true to fetch graybox Hlx Admin API Key
-    const grayboxHlxAdminApiKey = helixUtils.getAdminApiKey(true);
-    if (grayboxHlxAdminApiKey) {
+    const mainContentHlxAdminApiKey = helixUtils.getAdminApiKey(false);
+    if (mainContentHlxAdminApiKey) {
         options.headers = new fetch.Headers();
-        options.headers.append('Authorization', `token ${grayboxHlxAdminApiKey}`);
+        options.headers.append('Authorization', `token ${mainContentHlxAdminApiKey}`);
     }
-
+logger.info('Options: ', JSON.stringify(options));
     const project = `${gbRootFolder}/${experienceName}`;
     const toBeStatus = 'process_content_in_progress';
     const statusEntry = {
-        step: 'Processing files for Graybox blocks, styles and links started',
+        step: 'Processing files for Fragment Path transformation to include Experience Name',
         stepName: toBeStatus,
         files: []
     };
+logger.info('Status Entry: ', JSON.stringify(statusEntry));
+    await writeProjectStatus(filesWrapper, `graybox_promote${project}/bulk-copy-status.json`, statusEntry, toBeStatus);
 
-    await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, toBeStatus);
+    // Update the Project Status in the parent "bulk_copy_project_queue.json" file
+    await changeProjectStatusInQueue(filesWrapper, project, toBeStatus);
 
-    // Update the Project Status in the parent "project_queue.json" file
-    await changeProjectStatusInQueue(filesWrapper, gbRootFolder, experienceName, toBeStatus);
-
-    // Read the Batch Status in the current project's "batch_status_bulk_copy.json" file
-    const batchStatusBulkCopyJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batch_status_bulk_copy.json`);
+    // Read the Batch Status in the current project's "bulk_copy_batch_status.json" file
+    const batchStatusBulkCopyJson = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk_copy_batch_status.json`);
 
     logger.info(`In Bulk copy Process-doc-worker, for project: ${project} batchStatusBulkCopyJson: ${JSON.stringify(batchStatusBulkCopyJson)}`);
     const processedBatchesJson = {};
@@ -122,34 +127,40 @@ async function processFiles({
         // const batchStatuses = batchStatusBulkCopyJson[batchName];
         const sourcePathObjs = await filesWrapper.readFileIntoObject(`graybox_promote${project}/batches_bulk_copy/${batchName}.json`);
 
-
+logger.info('Source Path Objs: ', JSON.stringify(sourcePathObjs));
         // Check if Step 2 finished, do the Step 3, if the batch status is 'initial_preview_done' then process the batch
         if (batchStatusBulkCopyJson[batchName] === 'initiated') {
             for (let batchIndex = 0; batchIndex < sourcePathObjs.length; batchIndex += 1) {
                 const sourcePathObj = sourcePathObjs[batchIndex];
-                const { sourcePath, destinationPath } = sourcePathObj;
+                const { sourcePath, destinationPath, mdPath } = sourcePathObj;
                 const fileName = sharepoint.getFileNameFromPath(sourcePath);
-                if (sourcePathObj.mdPath) { // If the file has a mdPath then process the file
+                if (mdPath) { // If the file has a mdPath then process the file
                     // Check if the file is a docx file
                     const isDocxFile = fileName.toLowerCase().endsWith('.docx');
                     // Check if the file is an Excel file
                     const isExcelFile = fileName.toLowerCase().endsWith('.xlsx') ||
                         fileName.toLowerCase().endsWith('.xls');
 
+                        logger.info(`In BulkCopyProcessDocx-worker, for project: ${project} isDocxFile: ${isDocxFile}`);
                     if (isDocxFile) {
                         // eslint-disable-next-line no-await-in-loop
-                        const response = await sharepoint.fetchWithRetry(`${sourcePathObj.mdPath}`, options);
+                        const response = await sharepoint.fetchWithRetry(`${mdPath}`, options);
                         // eslint-disable-next-line no-await-in-loop
                         const content = await response.text();
                         let docx;
-                        if (hasGrayboxContent(content, experienceName)) {
+                        logger.info(`In BulkCopyProcessDocx-worker, hasFragmentPathsInContent(content): ${hasFragmentPathsInContent(content)}`);
+                        if (hasFragmentPathsInContent(content)) {
                             // Add the Graybox Experience Name to Graybox Fragment Links then perform Mdast to Docx conversion
                             // eslint-disable-next-line no-await-in-loop
-                            docx = await updateDocumentForBulkCopy(content, experienceName, helixAdminApiKey);
+                            docx = await updateDocumentForBulkCopy(content, experienceName, helixAdminApiKey, helixUtils);
                             if (docx) {
                                 const destinationFilePath = `${sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${fileName}`;
                                 const docxFileStream = Readable.from(docx);
 
+                                logger.info(`In BulkCopyProcessDocx-worker, destinationFilePath: ${destinationFilePath}`);
+                                logger.info(`In BulkCopyProcessDocx-worker, sourceFilePath: ${sourcePath}`);
+                                logger.info(`In BulkCopyProcessDocx-worker, fileName: ${fileName}`);
+                                logger.info(`In BulkCopyProcessDocx-worker, batchName: ${batchName}`);
                                 // Write the processed documents to the AIO folder for docx files
                                 // eslint-disable-next-line no-await-in-loop
                                 await filesWrapper.writeFileFromStream(`graybox_promote${project}/docx_bulk_copy${destinationFilePath}`, docxFileStream);
@@ -164,15 +175,16 @@ async function processFiles({
                                     processType: 'promote'
                                 });
 
-                                let promoteBatchJson = processedBatchesJson[batchName];
-                                if (!promoteBatchJson) {
-                                    promoteBatchJson = { status: 'processed', files: [destinationFilePath] };
-                                } else if (promoteBatchJson.files) {
-                                    promoteBatchJson.files.push(destinationFilePath);
+                                let processedBatchJson = processedBatchesJson[batchName];
+                                if (!processedBatchJson) {
+                                    processedBatchJson = { status: 'processed', 
+                                        files: [{ sourcePath, destinationPath }] };
+                                } else if (processedBatchJson.files) {
+                                    processedBatchJson.files.push({ sourcePath, destinationPath });
                                 } else {
-                                    promoteBatchJson.files = [destinationFilePath];
+                                    processedBatchJson.files = [{ sourcePath, destinationPath }];
                                 }
-                                processedBatchesJson[batchName] = promoteBatchJson;
+                                processedBatchesJson[batchName] = processedBatchJson;
 
                                 logger.info(`In Process-doc-worker, for project: ${project} Promote Batch JSON after push: ${JSON.stringify(processedBatchesJson)}`);
 
@@ -183,7 +195,7 @@ async function processFiles({
 
                                 // Write the promote batches JSON file
                                 // eslint-disable-next-line no-await-in-loop
-                                await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, processedBatchesJson);
+                                await filesWrapper.writeFile(`graybox_promote${project}/processed_batches.json`, processedBatchesJson);
                             } else {
                                 processDocxErrors.push(`Error processing docx for ${fileName}`);
                             }
@@ -204,20 +216,20 @@ async function processFiles({
                             });
 
                             // Don't create new batch names, use the same batch names created in the start before initial preview
-                            let copyBatchJson = unprocessedBatchesJson[batchName];
-                            if (!copyBatchJson) {
-                                copyBatchJson = { status: 'processed', files: [{ copySourceFilePath, copyDestFilePath }] };
-                            } else if (!copyBatchJson.files) {
-                                copyBatchJson.files = [];
+                            let unprocessedBatchJson = unprocessedBatchesJson[batchName];
+                            if (!unprocessedBatchJson) {
+                                unprocessedBatchJson = { status: 'processed', files: [{ copySourceFilePath, copyDestFilePath }] };
+                            } else if (!unprocessedBatchJson.files) {
+                                unprocessedBatchJson.files = [];
                             }
                             // Check if the file entry already exists before adding
-                            const fileEntryExists = copyBatchJson.files.some(
+                            const fileEntryExists = unprocessedBatchJson.files.some(
                                 file => file.copySourceFilePath === copySourceFilePath && file.copyDestFilePath === copyDestFilePath
                             );
                             if (!fileEntryExists) {
-                                copyBatchJson.files.push({ copySourceFilePath, copyDestFilePath });
+                                unprocessedBatchJson.files.push({ copySourceFilePath, copyDestFilePath });
                             }
-                            unprocessedBatchesJson[batchName] = copyBatchJson;
+                            unprocessedBatchesJson[batchName] = unprocessedBatchJson;
 
                             // If the copy batch count reaches the limit, increment the copy batch count
                             if (unprocessedBatchCount === BATCH_REQUEST_BULK_COPY) { // TODO remove this code if copyBatchCount is not needed, and instead initial preview batch count is used
@@ -234,39 +246,39 @@ async function processFiles({
                         const content = await response.text();
                         // Check if we need to convert the transformed Excel content to an actual Excel file
                         // Transform graybox URLs to non-graybox URLs
-                        if (hasGrayboxContent(content, experienceName)) {
-                            const transformedExcelContent = await updateExcel(content, experienceName);
-                            const excelBuffer = convertJsonToExcel(transformedExcelContent, experienceName);
-                            // Write the transformed content back
-                            const destinationFilePath = `${sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${fileName}`;
+                        // if (hasGrayboxContent(content, experienceName)) {
+                        //     const transformedExcelContent = await updateExcel(content, experienceName);
+                        //     const excelBuffer = convertJsonToExcel(transformedExcelContent, experienceName);
+                        //     // Write the transformed content back
+                        //     const destinationFilePath = `${sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1).replace('/'.concat(experienceName), '')}${fileName}`;
 
-                            // eslint-disable-next-line no-await-in-loop
-                            await filesWrapper.writeFile(`graybox_promote${project}/excel${destinationFilePath}`, excelBuffer);
+                        //     // eslint-disable-next-line no-await-in-loop
+                        //     await filesWrapper.writeFile(`graybox_promote${project}/excel${destinationFilePath}`, excelBuffer);
 
-                            // Add to processed files list
-                            processedFiles.push({
-                                fileName: fileName,
-                                sourcePath: sourcePath,
-                                destinationPath: destinationFilePath,
-                                fileType: 'excel',
-                                batchName,
-                                processType: 'promote'
-                            });
+                        //     // Add to processed files list
+                        //     processedFiles.push({
+                        //         fileName: fileName,
+                        //         sourcePath: sourcePath,
+                        //         destinationPath: destinationFilePath,
+                        //         fileType: 'excel',
+                        //         batchName,
+                        //         processType: 'promote'
+                        //     });
 
-                            let promoteBatchJson = processedBatchesJson[batchName];
-                            if (!promoteBatchJson) {
-                                promoteBatchJson = { status: 'processed', files: [destinationFilePath] };
-                            } else if (promoteBatchJson.files) {
-                                promoteBatchJson.files.push(destinationFilePath);
-                            } else {
-                                promoteBatchJson.files = [destinationFilePath];
-                            }
-                            processedBatchesJson[batchName] = promoteBatchJson;
+                        //     let processedBatchJson = processedBatchesJson[batchName];
+                        //     if (!processedBatchJson) {
+                        //         processedBatchJson = { status: 'processed', files: [destinationFilePath] };
+                        //     } else if (processedBatchJson.files) {
+                        //         processedBatchJson.files.push(destinationFilePath);
+                        //     } else {
+                        //         processedBatchJson.files = [destinationFilePath];
+                        //     }
+                        //     processedBatchesJson[batchName] = processedBatchJson;
 
-                            logger.info(`In Process-doc-worker, for project: ${project} Promote Batch JSON after push: ${JSON.stringify(processedBatchesJson)}`);
-                            // eslint-disable-next-line no-await-in-loop
-                            await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, processedBatchesJson);
-                        } else {
+                        //     logger.info(`In Process-doc-worker, for project: ${project} Promote Batch JSON after push: ${JSON.stringify(processedBatchesJson)}`);
+                        //     // eslint-disable-next-line no-await-in-loop
+                        //     await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, processedBatchesJson);
+                        // } else {
                             // If no graybox URLs found, just copy the file
                             const copySourceFilePath = `${sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1)}${fileName}`;
                             const copyDestinationFolder = `${sourcePath.substring(0, sourcePath.lastIndexOf('/')).replace('/'.concat(experienceName), '')}`;
@@ -301,7 +313,7 @@ async function processFiles({
                             }
                             logger.info(`In Process-doc-worker, for project: ${project} Copy Batch JSON after push: ${JSON.stringify(unprocessedBatchesJson)}`);
                             // Remove the immediate write here - we'll write at the end of batch processing
-                        }
+                        // }
                     } else {
                         // For non-docx files, just add to copy batches
                         const copySourceFilePath = `${sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1)}${fileName}`;
@@ -317,20 +329,20 @@ async function processFiles({
                             processType: 'copy'
                         });
 
-                        let copyBatchJson = unprocessedBatchesJson[batchName];
-                        if (!copyBatchJson) {
-                            copyBatchJson = { status: 'processed', files: [{ copySourceFilePath, copyDestFilePath }] };
-                        } else if (!copyBatchJson.files) {
-                            copyBatchJson.files = [];
+                        let unprocessedBatchJson = unprocessedBatchesJson[batchName];
+                        if (!unprocessedBatchJson) {
+                            unprocessedBatchJson = { status: 'processed', files: [{ copySourceFilePath, copyDestFilePath }] };
+                        } else if (!unprocessedBatchJson.files) {
+                            unprocessedBatchJson.files = [];
                         }
                         // Check if the file entry already exists before adding
-                        const fileEntryExists = copyBatchJson.files.some(
+                        const fileEntryExists = unprocessedBatchJson.files.some(
                             file => file.copySourceFilePath === copySourceFilePath && file.copyDestFilePath === copyDestFilePath
                         );
                         if (!fileEntryExists) {
-                            copyBatchJson.files.push({ copySourceFilePath, copyDestFilePath });
+                            unprocessedBatchJson.files.push({ copySourceFilePath, copyDestFilePath });
                         }
-                        unprocessedBatchesJson[batchName] = copyBatchJson;
+                        unprocessedBatchesJson[batchName] = unprocessedBatchJson;
 
                         if (unprocessedBatchCount === BATCH_REQUEST_BULK_COPY) {
                             unprocessedBatchCount += 1;
@@ -339,12 +351,12 @@ async function processFiles({
                         // Remove the immediate write here - we'll write at the end of batch processing
                     }
 
-                    // Update each Batch Status in the current project's "batch_status_bulk_copy.json" file
+                    // Update each Batch Status in the current project's "bulk_copy_batch_status.json" file
                     batchStatusBulkCopyJson[batchName] = 'processed';
 
-                    // Update the Project Status & Batch Status in the current project's "status.json" & updated batch_status_bulk_copy.json file respectively
+                    // Update the Project Status & Batch Status in the current project's "status.json" & updated bulk_copy_batch_status.json file respectively
                     // eslint-disable-next-line no-await-in-loop
-                    await filesWrapper.writeFile(`graybox_promote${project}/batch_status_bulk_copy.json`, batchStatusBulkCopyJson);
+                    await filesWrapper.writeFile(`graybox_promote${project}/bulk_copy_batch_status.json`, batchStatusBulkCopyJson);
                 } else {
                     // Add to unprocessed files list - files that failed preview or don't need processing
                     // Update the Project Excel with the unprocessed file status
@@ -381,13 +393,67 @@ async function processFiles({
     // Write the unprocessed files list to a JSON file
     await filesWrapper.writeFile(`graybox_promote${project}/unprocessed_files.json`, unprocessedFiles);
 
-    await updateStatuses(processedBatchesJson, unprocessedBatchesJson, project, filesWrapper, processDocxErrors, sharepoint, projectExcelPath, processedFiles, unprocessedFiles);
+    await updateStatuses(processedBatchesJson, project, filesWrapper, processDocxErrors, sharepoint, projectExcelPath, processedFiles, unprocessedFiles);
+
+    const batchName = 'batch_1'; // TODO read batchname from batches json
+    const processedFilePathObjs = processedBatchesJson[batchName].files || [];
+
+    logger.info(`In Promote Content Worker, for project: ${project} for Batch Name ${batchName} promoteFilePaths: ${JSON.stringify(processedFilePathObjs)}`);
+
+    // Process the Promote Content
+    const promotes = [];
+    const failedPromotes = [];
+
+    // Collect all promises from the forEach loop
+    // eslint-disable-next-line no-restricted-syntax
+    for (const processedFilePathObj of processedFilePathObjs) {
+        const { sourcePath, destinationPath } = processedFilePathObj;
+        // Check if the file is a docx or xlsx based on file extension
+        const isExcelFile = sourcePath.toLowerCase().endsWith('.xlsx') || sourcePath.toLowerCase().endsWith('.xls');
+        const folderType = isExcelFile ? 'excel' : 'docx';
+        // eslint-disable-next-line no-await-in-loop
+        // const promoteFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/${folderType}${processedFilePath}`);
+        const processedFile = await filesWrapper.readFileIntoBuffer(`graybox_promote${project}/docx_bulk_copy${sourcePath}`);
+        if (processedFile) {
+            logger.info(`In BulkCopyProcessDocx-worker, processedFile before save`);
+            // Check file existence and compare dates
+            // const { newerDestinationFiles: newFiles } = await checkAndCompareFileDates({
+            //     sharepoint,
+            //     filesWrapper,
+            //     project,
+            //     filePath: processedFilePath
+            // });
+            // newerDestinationFiles.push(...newFiles);
+            
+            // If file doesn't exist or we're overwriting it anyway
+            const saveStatus = await sharepoint.saveFileSimple(processedFile, destinationPath, true);
+
+            if (saveStatus?.success) {
+                promotes.push(destinationPath);
+            } else if (saveStatus?.errorMsg?.includes('File is locked')) {
+                failedPromotes.push(`${destinationPath} (locked file)`);
+            } else {
+                failedPromotes.push(`${destinationPath} (failed with reason: ${saveStatus?.errorMsg})`);
+            }
+        }
+    }
+
 }
 
-async function updateStatuses(promoteBatchesJson, copyBatchesJson, project, filesWrapper, processContentErrors, sharepoint, projectExcelPath, processedFiles, unprocessedFiles) {
+/**
+ * Check if the content contains any fragment paths
+ * @param {string} content - The content to check
+ * @returns {boolean} - True if content contains any fragment paths
+ */
+async function hasFragmentPathsInContent(content) {
+    // Find fragment links in content using angle bracket format
+    // Pattern matches: <https://...aem.page/.../fragments/...>
+    return content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+}
+
+async function updateStatuses(processedBatchesJson, project, filesWrapper, processContentErrors, sharepoint, projectExcelPath, processedFiles, unprocessedFiles) {
     // Write the copy batches JSON file
-    await filesWrapper.writeFile(`graybox_promote${project}/copy_batches.json`, copyBatchesJson);
-    await filesWrapper.writeFile(`graybox_promote${project}/promote_batches.json`, promoteBatchesJson);
+    await filesWrapper.writeFile(`graybox_promote${project}/processed_batches.json`, processedBatchesJson);
     // Update the Project Status in JSON files
     await updateProjectStatus(project, filesWrapper, processedFiles, unprocessedFiles);
 
@@ -451,7 +517,7 @@ async function updateStatuses(promoteBatchesJson, copyBatchesJson, project, file
 }
 
 /**
- * Update the Project Status in the current project's "status.json" file & the parent "project_queue.json" file
+ * Update the Project Status in the current project's "status.json" file & the parent "bulk_copy_project_queue.json" file
  * @param {*} gbRootFolder graybox root folder
  * @param {*} experienceName graybox experience name
  * @param {*} filesWrapper filesWrapper object
@@ -467,20 +533,20 @@ async function updateProjectStatus(project, filesWrapper, processedFiles, unproc
     };
     await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, toBeStatus);
 
-    // Update the Project Status in the parent "project_queue.json" file
-    const projectQueue = await changeProjectStatusInQueue(filesWrapper, project, toBeStatus);
-    logger.info(`In process-content-worker, for project: ${project} After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueue)}`);
+    // Update the Project Status in the parent "bulk_copy_project_queue.json" file
+    const projectQueueBulkCopy = await changeProjectStatusInQueue(filesWrapper, project, toBeStatus);
+    logger.info(`In process-content-worker, for project: ${project} After Processing Docx, Project Queue Json: ${JSON.stringify(projectQueueBulkCopy)}`);
 }
 
 async function changeProjectStatusInQueue(filesWrapper, project, toBeStatus) {
-    const projectQueue = await filesWrapper.readFileIntoObject('graybox_promote/project_queue.json');
-    const index = projectQueue.findIndex((obj) => obj.projectPath === `${project}`);
+    const projectQueueBulkCopy = await filesWrapper.readFileIntoObject('graybox_promote/bulk_copy_project_queue.json');
+    const index = projectQueueBulkCopy.findIndex((obj) => obj.projectPath === `${project}`);
     if (index !== -1) {
         // Replace the object at the found index
-        projectQueue[index].status = toBeStatus;
-        await filesWrapper.writeFile('graybox_promote/project_queue.json', projectQueue);
+        projectQueueBulkCopy[index].status = toBeStatus;
+        await filesWrapper.writeFile('graybox_promote/bulk_copy_project_queue.json', projectQueueBulkCopy);
     }
-    return projectQueue;
+    return projectQueueBulkCopy;
 }
 
 function exitAction(resp) {

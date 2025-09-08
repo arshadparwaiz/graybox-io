@@ -158,6 +158,24 @@ application:
             limits:
               timeout: 3600000
               memorySize: 2048
+          initiate-bulk-copy-worker:
+            function: actions/graybox/initiate-bulk-copy-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          bulk-copy-process-docx-worker:
+            function: actions/graybox/bulk-copy-process-docx-worker.js
+            web: 'no'
+            runtime: nodejs:18
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
           bulk-copy-process-docx-sched:
             function: actions/graybox/bulk-copy-process-docx-sched.js
             web: 'no'
@@ -169,16 +187,7 @@ application:
               memorySize: 2048
             annotations:
               require-adobe-auth: false
-              final: true              
-          bulk-copy-process-docx-worker:
-            function: actions/graybox/bulk-copy-process-docx-worker.js
-            web: 'no'
-            runtime: nodejs:18
-            inputs:
-              LOG_LEVEL: debug
-            limits:
-              timeout: 3600000
-              memorySize: 2048
+              final: true
         triggers:
           everyMin:
             feed: /whisk.system/alarms/interval
@@ -197,6 +206,6 @@ application:
           everyMinCopyDocxRule:
             trigger: everyMin
             action: copy-sched
-          everyMinBulkCopyProcessDocxRule:
+          everyMinBulkCopyDocxRule:
             trigger: everyMin
             action: bulk-copy-process-docx-sched

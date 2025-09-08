@@ -65,6 +65,7 @@ async function updateDocumentForPromote(content, expName, hlxAdminApiKey) {
  * Replace all relative link references in the given mdast with the provided experience name and graybox style pattern.
  * @param {Array} mdast - The mdast to be updated.
  * @param {string} expName - The name of the experience.
+ * @param {RegExp} grayboxStylePattern - The pattern to match graybox styles.
  */
 const updateExperienceNameFromLinks = (mdast, expName) => {
     if (mdast) {
@@ -95,35 +96,64 @@ const updateExperienceNameFromLinks = (mdast, expName) => {
 };
 
 /**
+ * Check if the content contains any fragment paths
+ * @param {string} content - The content to check
+ * @returns {boolean} - True if content contains any fragment paths
+ */
+async function hasFragmentPathsInLink(content) {
+    // Find fragment links in content using angle bracket format
+    // Pattern matches: <https://...aem.page/.../fragments/...>
+    return content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+}
+
+/**
  * Adds Experience Name to all Fragment Path Links.
  * @param {Array} mdast - The mdast to be updated.
  * @param {string} expName - The name of the experience.
+ * @param {object} helixUtils - The Helix Utils object.
  */
-const addExperienceNameToFragmentLinks = (mdast, expName) => {
+const addExperienceNameToFragmentLinks = (mdast, expName, helixUtils) => {
     if (mdast) {
+        
+        const mainRepo = helixUtils.getRepo(false);
+        const grayboxRepo = helixUtils.getRepo(true);
+
         mdast.forEach((child) => {
             if (child.type === 'gridTable') {
                 firstGtRows.push(findFirstGtRowInNode(child));
             }
-            // Process link URLs
-            if (child.type === 'link' && child.url && (child.url.includes(expName) || child.url.includes(gbDomainSuffix))) {
-                child.url = child.url.replaceAll(`/fragments/`, `/${expName}/fragments/`, '/').replaceAll(gbDomainSuffix, emptyString);
+            // Process fragment link URLs
+            if (child.type === 'link' && hasFragmentPathsInLink(child.url)) {
+                logger.info(`In addExperienceNameToFragmentLinks, child.url: ${child.url}`);
+                child.url = child.url.replaceAll(`/fragments/`, `/${expName}/fragments/`, '/').replaceAll(`--${mainRepo}--`, `--${grayboxRepo}--`);
+                logger.info(`In addExperienceNameToFragmentLinks, child.url after replacement: ${child.url}`);
             }
 
+            // Process link text content that contains fragment URLs
+            if (child.type === 'link' && child.children && hasFragmentPathsInLink(child.url)) {
+                child.children.forEach((textNode) => {
+                    if (textNode.type === 'text' && textNode.value &&
+                        (textNode.value.includes(`/fragments/`) && textNode.value.includes(`--${mainRepo}--`))) {
+                        textNode.value = textNode.value.replaceAll(`/fragments/`, `/${expName}/fragments/`).replaceAll(`--${mainRepo}--`, `--${grayboxRepo}--`);
+                    }
+                });
+            }
             if (child.children) {
-                addExperienceNameToFragmentLinks(child.children, expName);
+                addExperienceNameToFragmentLinks(child.children, expName, helixUtils);
             }
         });
     }
 };
+
 /**
  * During Bulk Copy form Main to Graybox, Updates a document's Fragment paths to Graybox fragment paths.
  * @param {string} mdPath - The path to the Markdown file.
  * @param {string} experienceName - The name of the experience.
  * @param {object} options - The options for fetching the Markdown file.
+ * @param {string} helixUtils - The Helix Utils object.
  * @returns {Promise} - A promise that resolves to the generated Docx file.
  */
-async function updateDocumentForBulkCopy(content, expName, hlxAdminApiKey) {
+async function updateDocumentForBulkCopy(content, expName, hlxAdminApiKey, helixUtils) {
     firstGtRows = [];
     let docx;
     const state = { content: { data: content }, log: '' };
@@ -131,12 +161,15 @@ async function updateDocumentForBulkCopy(content, expName, hlxAdminApiKey) {
     const { mdast } = state.content;
     const mdastChildren = mdast.children;
 
-    // Add Expwerience Name to Graybox Fragment Links
-    addExperienceNameToFragmentLinks(mdastChildren, expName);
+    logger.info(`In updateDocumentForBulkCopy, mdastChildren: ${JSON.stringify(mdastChildren)}`);
+    // Add Experience Name to Graybox Fragment Links
+    addExperienceNameToFragmentLinks(mdastChildren, expName, helixUtils);
 
     try {
+        logger.info(`In updateDocumentForBulkCopy, before generating docx: ${JSON.stringify(mdast)}`);
         // generated docx file from updated mdast
         docx = await generateDocxFromMdast(mdast, hlxAdminApiKey);
+        logger.info(`Afterwards In generateDocxFromMdast, docx size: ${docx.length || docx.byteLength} bytes`);
     } catch (err) {
         // Mostly bad string ignored
         logger.debug(`Error while generating docxfromdast ${err}`);
@@ -253,8 +286,28 @@ async function generateDocxFromMdast(mdast, hlxAdminApiKey) {
         }
     };
 
+    logger.info(`In generateDocxFromMdast, before generating mdast to docx ${hlxAdminApiKey}`);
+    logger.info(`In generateDocxFromMdast, before generating docx ${JSON.stringify(mdast, null, 2)}`);
     const docx = await mdast2docx(mdast, options);
-
+    
+    // Check what type of object docx is
+    logger.info(`In generateDocxFromMdast, docx type: ${typeof docx}`);
+    logger.info(`In generateDocxFromMdast, docx constructor: ${docx?.constructor?.name}`);
+    logger.info(`In generateDocxFromMdast, docx is stream: ${docx && typeof docx.pipe === 'function'}`);
+    logger.info(`In generateDocxFromMdast, docx is readable: ${docx && typeof docx.read === 'function'}`);
+    
+    // If it's a buffer or has length, log the size
+    if (docx && (docx.length !== undefined || docx.byteLength !== undefined)) {
+        logger.info(`In generateDocxFromMdast, docx size: ${docx.length || docx.byteLength} bytes`);
+    }
+    
+    // If it's a stream, try to get some info about it
+    if (docx && typeof docx.pipe === 'function') {
+        logger.info(`In generateDocxFromMdast, stream readable: ${docx.readable}`);
+        logger.info(`In generateDocxFromMdast, stream destroyed: ${docx.destroyed}`);
+        logger.info(`In generateDocxFromMdast, stream readableLength: ${docx.readableLength}`);
+    }
+    
     return docx;
 }
 
