@@ -152,7 +152,8 @@ class AppConfig {
     }
 
     getSpConfig() {
-        if (!this.getUrlInfo().isValid()) {
+        const urlInfo = this.getUrlInfo();
+        if (!urlInfo || !urlInfo.isValid()) {
             return undefined;
         }
 

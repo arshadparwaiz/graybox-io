@@ -158,6 +158,90 @@ application:
             limits:
               timeout: 3600000
               memorySize: 2048
+          bulk-copy-sched:
+            function: actions/graybox/bulk-copy-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true
+          bulk-copy-non-processing-worker:
+            function: actions/graybox/bulk-copy-non-processing-worker.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          bulk-copy-process-docx-sched:
+            function: actions/graybox/bulk-copy-process-docx-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true
+          bulk-copy-process-docx-worker:
+            function: actions/graybox/bulk-copy-process-docx-worker.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          bulk-copy-promote-sched:
+            function: actions/graybox/bulk-copy-promote-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true
+          bulk-copy-promote-worker:
+            function: actions/graybox/bulk-copy-promote-worker.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
+          promoted-preview-sched:
+            function: actions/graybox/promoted-preview-sched.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 900000
+              memorySize: 2048
+            annotations:
+              require-adobe-auth: false
+              final: true
+          promoted-preview-worker:
+            function: actions/graybox/promoted-preview-worker.js
+            web: 'no'
+            runtime: 'nodejs:18'
+            inputs:
+              LOG_LEVEL: debug
+            limits:
+              timeout: 3600000
+              memorySize: 2048
         triggers:
           everyMin:
             feed: /whisk.system/alarms/interval
@@ -176,3 +260,15 @@ application:
           everyMinCopyDocxRule:
             trigger: everyMin
             action: copy-sched
+          everyMinBulkCopyRule:
+            trigger: everyMin
+            action: bulk-copy-sched
+          everyMinBulkCopyProcessDocxRule:
+            trigger: everyMin
+            action: bulk-copy-process-docx-sched
+          everyMinBulkCopyPromoteRule:
+            trigger: everyMin
+            action: bulk-copy-promote-sched
+          everyMinPromotedPreviewRule:
+            trigger: everyMin
+            action: promoted-preview-sched

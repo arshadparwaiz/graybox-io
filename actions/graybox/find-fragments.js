@@ -132,7 +132,8 @@ async function main(params) {
             fragmentLinks: fragmentsWithStatus.map((fragment) => ({
                 fragmentPath: fragment.fragmentPath,
                 status: fragment.status,
-                availability: fragment.status === 200 ? 'Available' : 'Missing'
+                availability: fragment.status === 200 ? 'Available' : 'Missing',
+                sourcePath: fragment.sourcePath
             }))
         }
     };

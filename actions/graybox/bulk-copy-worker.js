@@ -13,210 +13,191 @@
  * Dissemination of this information or reproduction of this material
  * is strictly forbidden unless prior written permission is obtained
  * from Adobe.
- ************************************************************************* */
+************************************************************************* */
 
 import AppConfig from '../appConfig.js';
 import Sharepoint from '../sharepoint.js';
-import { delay, getAioLogger } from '../utils.js';
+import { getAioLogger } from '../utils.js';
 import initFilesWrapper from './filesWrapper.js';
-import { toUTCStr } from '../utils.js';
+import HelixUtils from '../helixUtils.js';
+import { processSourcePaths } from './pathProcessing.js';
+import {
+    categorizeFragments,
+    createConsolidatedFragmentData,
+    createBatches,
+    updateConsolidatedFragmentDataWithBatches
+} from './batchManagement.js';
+import {
+    initializeProjectStatus,
+    updateBulkCopyStatusCompletion,
+    updateMainProjectStatusCompletion,
+    updateBulkCopyProjectQueue,
+    writeBatchFiles,
+    updateExcelWithFragmentDiscoveryResults,
+    updateBulkCopyStepStatusCompletion,
+    handleErrorStatus
+} from './statusManagement.js';
 
 const logger = getAioLogger();
+
 async function main(params) {
     logger.info('Graybox Bulk Copy Worker triggered');
+
     const appConfig = new AppConfig(params);
-    const sharepoint = new Sharepoint(appConfig);
-    const filesWrapper = await initFilesWrapper(logger);
     const {
-        gbRootFolder, experienceName, projectExcelPath
+        driveId, adminPageUri, rootFolder, gbRootFolder, promoteIgnorePaths, experienceName, projectExcelPath
     } = appConfig.getPayload();
 
+    const sharepoint = new Sharepoint(appConfig);
+    const helixUtils = new HelixUtils(appConfig);
+    const filesWrapper = await initFilesWrapper(logger);
+    const { sourcePaths } = params;
+
+    if (!sourcePaths) {
+        throw new Error('sourcePaths parameter is missing');
+    }
+
+    if (!Array.isArray(sourcePaths) && typeof sourcePaths !== 'string') {
+        throw new Error(`sourcePaths must be an array or string, got: ${typeof sourcePaths}`);
+    }
+
+    const sourcePathsArray = Array.isArray(sourcePaths) ? sourcePaths : [sourcePaths];
+
+    logger.info(`Received sourcePaths: ${JSON.stringify(sourcePathsArray)}`);
+    logger.info(`First item type: ${typeof sourcePathsArray[0]}`);
+    logger.info(`First item: ${JSON.stringify(sourcePathsArray[0])}`);
+
     const project = `${gbRootFolder}/${experienceName}`;
-    // Array to track failed files
-    const failedFiles = [];
-    // Array to track Excel updates
-    const excelUpdates = [];
 
     try {
-        logger.info('Starting bulk copy worker');
+        logger.info('Starting bulk copy worker with fragment discovery');
 
-        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, {
-            statuses: []
-        });
-
-        const { sourcePaths } = params;
-        const results = {
-            successful: [],
-            failed: []
-        };
-
-        const bulkCopyStatus = {
-            status: 'started',
-            sourcePaths,
+        // Prepare input parameters
+        const inputParams = {
+            driveId,
+            rootFolder,
+            gbRootFolder,
+            projectExcelPath,
             experienceName,
-            destinationFolder: gbRootFolder,
-            timestamp: new Date().toISOString(),
-            statuses: []
+            adminPageUri,
+            promoteIgnorePaths,
+            spToken: params.spToken,
+            draftsOnly: params.draftsOnly,
+            ignoreUserCheck: `${appConfig.ignoreUserCheck()}`,
+            sourcePathsCount: sourcePathsArray.length
         };
 
-        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, bulkCopyStatus);
+        // Initialize project status
+        await initializeProjectStatus(filesWrapper, project, inputParams);
+        logger.info('Project queue entry should already exist from bulk-copy.js invocation');
 
-        const processingStatus = {
-            timestamp: new Date().toISOString(),
-            status: 'processing'
-        };
-        const currentStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-        currentStatus.status = 'processing';
-        currentStatus.statuses.push(processingStatus);
-        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, currentStatus);
-
-        await Promise.all(sourcePaths.map(async (pathInfo) => {
-            try {
-                const { sourcePath, destinationPath: fileDestinationPath } = pathInfo;
-
-                const status = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-                status.statuses.push({
-                    timestamp: new Date().toISOString(),
-                    status: 'processing_file',
-                    file: sourcePath
-                });
-                await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, status);
-
-                let sourcePathForFileData = sourcePath;
-                if (sourcePath.endsWith('.json')) {
-                    sourcePathForFileData = sourcePath.replace(/\.json$/, '.xlsx');
-                }
-                const { fileDownloadUrl, fileSize } = await sharepoint.getFileData(sourcePathForFileData, false);
-
-                if (!fileDownloadUrl) {
-                    const errorMsg = `Failed to get file data for: ${sourcePath}`;
-                    failedFiles.push({ path: sourcePath, error: errorMsg });
-                    excelUpdates.push([`Failed to copy file: ${sourcePath}`, toUTCStr(new Date()), errorMsg, '']);
-                    throw new Error(errorMsg);
-                }
-
-                const fileContent = await sharepoint.getFileUsingDownloadUrl(fileDownloadUrl);
-                if (!fileContent) {
-                    const errorMsg = `Failed to download file: ${sourcePath}`;
-                    logger.error(`Failed to download file in bulk copy worker: ${sourcePath}`);
-                    failedFiles.push({ path: sourcePath, error: errorMsg });
-                    excelUpdates.push([`Failed to download file: ${sourcePath}`, toUTCStr(new Date()), errorMsg, '']);
-                    throw new Error(errorMsg);
-                }
-
-                let destPath = fileDestinationPath;
-                if (destPath.endsWith('.json')) {
-                    destPath = destPath.replace(/\.json$/, '.xlsx');
-                }
-
-                const savingStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-                savingStatus.statuses.push({
-                    timestamp: new Date().toISOString(),
-                    status: 'saving_file',
-                    sourcePath,
-                    destinationPath: destPath
-                });
-                await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, savingStatus);
-
-                const saveResult = await sharepoint.saveFileSimple(fileContent, destPath, true);
-                if (!saveResult.success) {
-                    const errorMsg = saveResult.errorMsg || `Failed to save file to: ${destPath}`;
-                    failedFiles.push({ path: sourcePath, error: errorMsg });
-                    excelUpdates.push([`Failed to copy file: ${sourcePath}`, toUTCStr(new Date()), errorMsg, '']);
-                    throw new Error(errorMsg);
-                }
-                logger.info(`File saved to destination: ${destPath}`);
-
-                results.successful.push({
-                    sourcePath,
-                    destinationPath: destPath,
-                    fileSize
-                });
-
-                const successStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-                successStatus.statuses.push({
-                    timestamp: new Date().toISOString(),
-                    status: 'file_copied',
-                    sourcePath,
-                    destinationPath: destPath,
-                    fileSize
-                });
-                await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, successStatus);
-
-                await delay(100);
-            } catch (error) {
-                logger.error(`Error processing ${pathInfo.sourcePath}: ${error.message}`);
-                results.failed.push({
-                    sourcePath: pathInfo.sourcePath,
-                    error: error.message
-                });
-
-                const failureStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-                failureStatus.statuses.push({
-                    timestamp: new Date().toISOString(),
-                    status: 'file_failed',
-                    sourcePath: pathInfo.sourcePath,
-                    error: error.message
-                });
-                await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, failureStatus);
-
-                if (!failedFiles.some((f) => f.path === pathInfo.sourcePath)) {
-                    failedFiles.push({ path: pathInfo.sourcePath, error: error.message });
-                    excelUpdates.push([`Failed to copy file: ${pathInfo.sourcePath}`, toUTCStr(new Date()), error.message, '']);
-                }
+        // Process source paths to discover fragments
+        const getPageMdPath = (pathInfo) => {
+            if (pathInfo && pathInfo.originalUrl) {
+                return `${pathInfo.originalUrl}.md`;
             }
-        }));
+            return null;
+        };
 
-        const finalStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-        finalStatus.status = 'completed';
-        finalStatus.statuses.push({
-            status: 'completed',
-            timestamp: new Date().toISOString(),
-            results
-        });
-        await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, finalStatus);
+        const processedPaths = await processSourcePaths(sourcePathsArray, helixUtils, experienceName, appConfig, getPageMdPath);
 
-        excelUpdates.push(['Bulk Copy Completed', toUTCStr(new Date()), '', '']);
-        if (failedFiles.length > 0) {
-            excelUpdates.push([`Bulk Copy: ${failedFiles.length} files failed`, toUTCStr(new Date()), 'See individual file errors above', '']);
-        }
-        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelUpdates);
+        const filesWithFragments = processedPaths.filter((path) => path.hasFragments);
+        const filesWithoutFragments = processedPaths.filter((path) => !path.hasFragments);
+
+        logger.info(`File categorization: ${filesWithFragments.length} files with fragments, ${filesWithoutFragments.length} files without fragments`);
+
+        // Categorize fragments based on nested content
+        const { fragmentsWithNestedFragments, fragmentsWithoutNestedFragments } = await categorizeFragments(processedPaths, helixUtils);
+
+        // Create consolidated fragment data
+        const consolidatedFragmentData = createConsolidatedFragmentData(
+            processedPaths,
+            filesWithFragments,
+            filesWithoutFragments,
+            fragmentsWithNestedFragments,
+            fragmentsWithoutNestedFragments
+        );
+
+        // Create the consolidated file
+        await filesWrapper.writeFile(`graybox_promote${project}/consolidated-fragment-data.json`, consolidatedFragmentData);
+
+        // Create batches
+        const bulkCopyBatchesFolder = `graybox_promote${project}/bulk-copy-batches`;
+        const filesNeedingProcessing = [...filesWithFragments, ...fragmentsWithNestedFragments];
+        const filesNotNeedingProcessing = [...filesWithoutFragments, ...fragmentsWithoutNestedFragments];
+
+        const {
+            batchStatusJson,
+            bulkCopyBatchesJson,
+            processingBatchesArray,
+            nonProcessingBatchesArray,
+            totalBatches
+        } = await createBatches(filesNeedingProcessing, filesNotNeedingProcessing, filesWrapper, bulkCopyBatchesFolder);
+
+        // Update consolidated fragment data with batch information
+        const finalConsolidatedFragmentData = updateConsolidatedFragmentDataWithBatches(
+            consolidatedFragmentData,
+            batchStatusJson,
+            bulkCopyBatchesJson,
+            totalBatches,
+            processingBatchesArray,
+            nonProcessingBatchesArray,
+            bulkCopyBatchesFolder
+        );
+
+        // Update all status files
+        await updateBulkCopyStatusCompletion(filesWrapper, project, processedPaths, filesWithFragments, filesWithoutFragments, totalBatches, processingBatchesArray, nonProcessingBatchesArray);
+        await updateMainProjectStatusCompletion(filesWrapper, project, processedPaths, filesWithFragments, filesWithoutFragments, totalBatches);
+        await updateBulkCopyProjectQueue(filesWrapper, project);
+        await writeBatchFiles(filesWrapper, bulkCopyBatchesFolder, bulkCopyBatchesJson, batchStatusJson);
+        await filesWrapper.writeFile(`graybox_promote${project}/consolidated-fragment-data.json`, finalConsolidatedFragmentData);
+
+        // Update Excel and step status
+        await updateExcelWithFragmentDiscoveryResults(
+            sharepoint,
+            projectExcelPath,
+            processedPaths,
+            filesWithFragments,
+            filesWithoutFragments,
+            fragmentsWithNestedFragments,
+            fragmentsWithoutNestedFragments,
+            totalBatches,
+            processingBatchesArray,
+            nonProcessingBatchesArray
+        );
+
+        await updateBulkCopyStepStatusCompletion(
+            filesWrapper,
+            project,
+            processedPaths,
+            totalBatches,
+            processingBatchesArray,
+            nonProcessingBatchesArray,
+            filesWithFragments,
+            fragmentsWithNestedFragments
+        );
 
         return {
-            statusCode: 200,
+            code: 200,
             body: {
-                message: 'Bulk copy operation completed',
-                results: {
-                    total: sourcePaths.length,
-                    successful: results.successful.length,
-                    failed: results.failed.length,
-                    details: results
-                }
+                message: 'Bulk copy fragment discovery completed',
+                totalFiles: processedPaths.length,
+                filesWithFragments: filesWithFragments.length,
+                filesWithoutFragments: filesWithoutFragments.length,
+                totalBatches,
+                processingBatches: processingBatchesArray.length,
+                nonProcessingBatches: nonProcessingBatchesArray.length
             }
         };
     } catch (error) {
-        logger.error(error);
+        logger.error(`Error in bulk copy worker: ${error.message}`);
 
-        try {
-            const errorStatus = await filesWrapper.readFileIntoObject(`graybox_promote${project}/bulk-copy-status.json`);
-            errorStatus.status = 'error';
-            errorStatus.statuses.push({
-                timestamp: new Date().toISOString(),
-                status: 'error',
-                error: error.message
-            });
-            await filesWrapper.writeFile(`graybox_promote${project}/bulk-copy-status.json`, errorStatus);
-
-            excelUpdates.push(['Bulk Copy Failed', toUTCStr(new Date()), error.message, '']);
-            await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', excelUpdates);
-        } catch (statusError) {
-            logger.error(`Failed to update status file: ${statusError.message}`);
-        }
+        await handleErrorStatus(filesWrapper, project, projectExcelPath, sharepoint, error);
 
         return {
-            statusCode: 500,
+            code: 500,
             body: {
-                error: 'Internal server error',
+                error: 'Fragment discovery failed',
                 message: error.message
             }
         };
