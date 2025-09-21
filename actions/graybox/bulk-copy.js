@@ -129,6 +129,20 @@ async function main(params) {
 
             await filesWrapper.writeFile(bulkCopyProjectQueuePath, bulkCopyProjectQueue);
 
+            // For Every Bulk Copy Project, Create Empty Files for Preview Tracking
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/copied_paths.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/processed_paths.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/promoted_files_for_preview.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/copied_files_for_preview.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/process_errors.json`, []);
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/copy_errors.json`, []);
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/status.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/bulk-copy-batches/batch_status.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/bulk-copy-batches/bulk_copy_batches.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/bulk-copy-status.json`, {});
+            await filesWrapper.writeFile(`graybox_promote${projectPath}/consolidated-fragment-data.json`, {});
+
+
             const workerParams = {
                 ...params,
                 sourcePaths: processedSourcePaths,

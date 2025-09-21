@@ -143,8 +143,13 @@ async function main(params) {
             const saveStatus = await sharepoint.saveFileSimple(file, destPath, true);
 
             if (saveStatus?.success) {
-                copiedFiles.push(destPath);
-                logger.info(`Successfully copied: ${sourcePath} -> ${destPath}`);
+                // Only add if not already in the array (prevent duplicates)
+                if (!copiedFiles.includes(destPath)) {
+                    copiedFiles.push(destPath);
+                    logger.info(`Successfully copied: ${sourcePath} -> ${destPath}`);
+                } else {
+                    logger.info(`File already copied (duplicate): ${destPath}`);
+                }
             } else if (saveStatus?.errorMsg?.includes('File is locked')) {
                 failedCopies.push(`${destPath} (locked file)`);
                 logger.warn(`File locked: ${destPath}`);
