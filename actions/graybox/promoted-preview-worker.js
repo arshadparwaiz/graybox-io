@@ -54,10 +54,19 @@ async function main(params) {
 
         try {
             const promotedFilesData = await filesWrapper.readFileIntoObject(promotedFilesPath);
+            logger.info(`Debug: Existing data for promoted files for preview: ${JSON.stringify(promotedFilesData)}`);
             if (Array.isArray(promotedFilesData)) {
                 const pendingPromotedFiles = promotedFilesData.filter((file) => file.previewStatus === 'pending');
-                allFilesToPreview = allFilesToPreview.concat(pendingPromotedFiles);
-                logger.info(`Found ${pendingPromotedFiles.length} promoted files pending preview`);
+                
+                // Filter out duplicates by checking both filePath and fileType
+                const uniquePromotedFiles = pendingPromotedFiles.filter(newFile => 
+                    !allFilesToPreview.some(existingFile => 
+                        existingFile.filePath === newFile.filePath && existingFile.fileType === newFile.fileType
+                    )
+                );
+                
+                allFilesToPreview = allFilesToPreview.concat(uniquePromotedFiles);
+                logger.info(`Found ${pendingPromotedFiles.length} promoted files pending preview, ${uniquePromotedFiles.length} unique files added`);
             }
         } catch (err) {
             if (err.message.includes('ERROR_FILE_NOT_EXISTS')) {
@@ -71,8 +80,16 @@ async function main(params) {
             const copiedFilesData = await filesWrapper.readFileIntoObject(copiedFilesPath);
             if (Array.isArray(copiedFilesData)) {
                 const pendingCopiedFiles = copiedFilesData.filter((file) => file.previewStatus === 'pending');
-                allFilesToPreview = allFilesToPreview.concat(pendingCopiedFiles);
-                logger.info(`Found ${pendingCopiedFiles.length} copied files pending preview`);
+                
+                // Filter out duplicates by checking both filePath and fileType
+                const uniqueCopiedFiles = pendingCopiedFiles.filter(newFile => 
+                    !allFilesToPreview.some(existingFile => 
+                        existingFile.filePath === newFile.filePath && existingFile.fileType === newFile.fileType
+                    )
+                );
+                
+                allFilesToPreview = allFilesToPreview.concat(uniqueCopiedFiles);
+                logger.info(`Found ${pendingCopiedFiles.length} copied files pending preview, ${uniqueCopiedFiles.length} unique files added`);
             }
         } catch (err) {
             if (err.message.includes('ERROR_FILE_NOT_EXISTS')) {
@@ -119,7 +136,7 @@ async function main(params) {
         if (failedPreviews.length > 0) {
             logger.info(`Retrying ${failedPreviews.length} failed previews`);
             const retryPaths = failedPreviews.map((status) => status.path);
-            const retryStatuses = await helixUtils.bulkPreview(retryPaths, helixUtils.getOperations().PREVIEW, experienceName, true);
+            const retryStatuses = await helixUtils.bulkPreview(retryPaths, helixUtils.getOperations().PREVIEW, experienceName, true, 1);
             await updateFilesPreviewStatus(promotedFilesPath, copiedFilesPath, allFilesToPreview, retryStatuses, filesWrapper);
         }
 
@@ -201,7 +218,9 @@ async function main(params) {
         // Count total files that need to be processed
         const totalPromotedFiles = promotedFilesData.length;
         const totalCopiedFiles = copiedFilesData.length;
+        logger.info(`Debug: Total promoted files: ${totalPromotedFiles}, Total copied files: ${totalCopiedFiles}`);
         const totalFilesToProcess = totalPromotedFiles + totalCopiedFiles;
+        logger.info(`Debug: Total files to process: ${totalFilesToProcess}`);
 
         // Count files that have been successfully processed
         const processedPromotedFiles = mergedPromotedFiles.length;
@@ -238,6 +257,11 @@ async function main(params) {
             },
             errors: mergedErrors
         });
+
+        if (shouldCompleteStep) {
+            await changeProjectStatusInQueue(filesWrapper, project, 'completed');
+            logger.info(`Updated project ${project} status to 'completed' in central queue`);
+        }
 
         await updateProjectStatus(project, filesWrapper, previewStatuses);
 
@@ -362,6 +386,16 @@ async function updateProjectStatus(project, filesWrapper, previewStatuses) {
     };
     await writeProjectStatus(filesWrapper, `graybox_promote${project}/status.json`, statusEntry, 'promoted_preview_completed');
     logger.info('Updated project status to promoted_preview_completed');
+}
+
+async function changeProjectStatusInQueue(filesWrapper, project, toBeStatus) {
+    const projectQueueBulkCopy = await filesWrapper.readFileIntoObject('graybox_promote/bulk_copy_project_queue.json');
+    const index = projectQueueBulkCopy.findIndex((obj) => obj.projectPath === `${project}`);
+    if (index !== -1) {
+        projectQueueBulkCopy[index].status = toBeStatus;
+        await filesWrapper.writeFile('graybox_promote/bulk_copy_project_queue.json', projectQueueBulkCopy);
+    }
+    return projectQueueBulkCopy;
 }
 
 function exitAction(resp) {

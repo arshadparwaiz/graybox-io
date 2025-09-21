@@ -291,8 +291,21 @@ async function main(params) {
 
         if (processedPathsJson[batchName]) {
             const existingFiles = Array.isArray(processedPathsJson[batchName]) ? processedPathsJson[batchName] : [];
-            processedFiles.push(...existingFiles);
-            logger.info(`Combined with ${existingFiles.length} existing files for batch ${batchName}`);
+            
+            // Filter out duplicates by checking sourcePath and destinationPath
+            const uniqueExistingFiles = existingFiles.filter(existingFile => 
+                !processedFiles.some(currentFile => 
+                    currentFile.sourcePath === existingFile.sourcePath && 
+                    currentFile.destinationPath === existingFile.destinationPath
+                )
+            );
+            
+            processedFiles.push(...uniqueExistingFiles);
+            logger.info(`Found ${existingFiles.length} existing files, added ${uniqueExistingFiles.length} unique files for batch ${batchName}`);
+            
+            if (existingFiles.length > uniqueExistingFiles.length) {
+                logger.info(`Skipped ${existingFiles.length - uniqueExistingFiles.length} duplicate files`);
+            }
         }
 
         processedPathsJson[batchName] = processedFiles;
