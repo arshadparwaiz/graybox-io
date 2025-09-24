@@ -415,8 +415,8 @@ async function main(params) {
  */
 function hasFragmentPathsInContent(content) {
     // Find fragment links in content using angle bracket format
-    // Pattern matches: <https://...aem.page/.../fragments/...>
-    return content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+    // Pattern matches: <https://...aem.page/.../fragments/...> or <https://...hlx.page/.../fragments/...>
+    return content.match(/<https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*>/g) || [];
 }
 
 /**
