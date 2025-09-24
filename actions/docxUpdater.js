@@ -154,14 +154,14 @@ function findFirstGtRowInNode(node) {
  */
 function hasFragmentPathsInLink(content) {
     // Find fragment links in content - can be in angle bracket format or plain URLs
-    // Pattern matches: <https://...aem.page/.../fragments/...> OR https://...aem.page/.../fragments/...
+    // Pattern matches: <https://...aem.page/.../fragments/...> OR https://...aem.page/.../fragments/...> OR hlx.page variants
     if (!content) {
         logger.info('In hasFragmentPathsInLink, content is null/undefined');
         return false;
     }
     // Check for both angle bracket format and plain URL format
-    const angleBracketMatches = content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g);
-    const plainUrlMatches = content.match(/https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*/g);
+    const angleBracketMatches = content.match(/<https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*>/g);
+    const plainUrlMatches = content.match(/https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*/g);
     const matches = angleBracketMatches || plainUrlMatches;
     // eslint-disable-next-line max-len
     logger.info(`In hasFragmentPathsInLink, checking content: ${content}, angle bracket matches: ${angleBracketMatches ? angleBracketMatches.length : 0}, plain URL matches: ${plainUrlMatches ? plainUrlMatches.length : 0}`);
@@ -213,7 +213,7 @@ const transformFragmentUrl = (url, expName, mainRepo, grayboxRepo) => {
  * @returns {string} The transformed text content
  */
 const transformFragmentUrlsInText = (text, expName, mainRepo, grayboxRepo) => {
-    const fragmentUrlRegex = /(<)?https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*(>)?/g;
+    const fragmentUrlRegex = /(<)?https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*(>)?/g;
 
     return text.replace(fragmentUrlRegex, (match) => {
         const hasAngleBrackets = match.startsWith('<');

@@ -49,7 +49,7 @@ export async function categorizeFragments(processedPaths, helixUtils) {
                         // Check if this nested fragment itself contains fragments
                         const nestedFragmentContent = await fetchPageContent(nestedFragment.fragmentPath, helixUtils);
                         if (nestedFragmentContent) {
-                            const nestedFragmentMatches = nestedFragmentContent.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+                            const nestedFragmentMatches = nestedFragmentContent.match(/<https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*>/g) || [];
                             
                             if (nestedFragmentMatches.length > 0) {
                                 // This nested fragment has its own nested fragments

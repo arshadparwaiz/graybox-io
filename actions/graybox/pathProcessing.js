@@ -25,11 +25,11 @@ const logger = getAioLogger();
  * Similar to the logic in bulk-copy.js
  */
 export function convertFragmentUrlToSharePointPath(fragmentUrl) {
-    if (!fragmentUrl || !fragmentUrl.includes('aem.page')) {
+    if (!fragmentUrl || (!fragmentUrl.includes('aem.page') && !fragmentUrl.includes('hlx.page'))) {
         return null;
     }
 
-    const regex = /aem\.page(\/.*?)(?:$|\s)|aem\.page\/(.*?)(?:\/[^/]+(?:\.\w+)?)?$/g;
+    const regex = /(?:aem|hlx)\.page(\/.*?)(?:$|\s)|(?:aem|hlx)\.page\/(.*?)(?:\/[^/]+(?:\.\w+)?)?$/g;
     const matches = [...fragmentUrl.matchAll(regex)];
     if (matches.length > 0) {
         const fullPath = matches[0][1] || matches[0][2];

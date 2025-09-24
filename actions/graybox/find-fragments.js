@@ -62,8 +62,8 @@ async function main(params) {
         logger.info(`Content from ${isFragment ? 'fragment' : 'sharepoint'} in find-fragments: ${content.substring(0, 500)}...`);
 
         // Find fragment links in content using angle bracket format
-        // Pattern matches: <https://...aem.page/.../fragments/...>
-        const fragmentMatches = content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+        // Pattern matches: <https://...aem.page/.../fragments/...> or <https://...hlx.page/.../fragments/...>
+        const fragmentMatches = content.match(/<https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*>/g) || [];
         const pathFragmentLinks = [];
 
         const fragmentPromises = fragmentMatches.map(async (match) => {

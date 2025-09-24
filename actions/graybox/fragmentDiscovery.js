@@ -35,8 +35,8 @@ export async function discoverFragments(pageUrl, helixUtils) {
         }
 
         // Find fragment links in content using angle bracket format
-        // Pattern matches: <https://...aem.page/.../fragments/...>
-        const fragmentMatches = pageContent.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
+        // Pattern matches: <https://...aem.page/.../fragments/...> or <https://...hlx.page/.../fragments/...>
+        const fragmentMatches = pageContent.match(/<https:\/\/[^>]*(?:aem|hlx)\.page[^>]*\/fragments\/[^>]*>/g) || [];
 
         logger.info(`Found ${fragmentMatches.length} fragment links in ${pageUrl}`);
 
