@@ -178,7 +178,7 @@ function hasFragmentPathsInLink(content) {
  */
 const transformFragmentUrl = (url, expName, mainRepo, grayboxRepo) => {
     try {
-        const urlParts = url.split('.aem.page');
+        const urlParts = url.includes('.aem.page') ? url.split('.aem.page') : url.split('.hlx.page');
         if (urlParts.length === 2) {
             const domain = urlParts[0];
             const path = urlParts[1];
@@ -220,7 +220,7 @@ const transformFragmentUrlsInText = (text, expName, mainRepo, grayboxRepo) => {
         const url = match.replace(/[<>]/g, '');
         const transformed = transformFragmentUrl(url, expName, mainRepo, grayboxRepo);
 
-        logger.info(`Transformed fragment URL in text: ${match} -> ${hasAngleBrackets ? `<${transformed}>` : transformed}`);
+        logger.info(`Transformed fragment URL in text: ${match} -> ${hasAngleBrackets ? `<${transformed}>` : transformed}\n Original URL: ${url}`);
         return hasAngleBrackets ? `<${transformed}>` : transformed;
     });
 };
