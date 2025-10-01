@@ -88,7 +88,7 @@ export function initializeBulkCopyStatus(project, experienceName, totalSourcePat
                 errors: []
             },
             step4_promotion: {
-                name: 'Files Promotion to Main Content',
+                name: 'Processed Files Copy',
                 status: 'pending',
                 startTime: null,
                 endTime: null,
@@ -104,7 +104,7 @@ export function initializeBulkCopyStatus(project, experienceName, totalSourcePat
                 errors: []
             },
             step5_preview: {
-                name: 'Promoted and Copied Files Preview',
+                name: 'Preview of Copied Files',
                 status: 'pending',
                 startTime: null,
                 endTime: null,
