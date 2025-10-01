@@ -260,7 +260,7 @@ async function main(params) {
     try {
         const sFailedCopyStatuses = failedCopies.length > 0 ? `Failed Copies: \n${failedCopies.join('\n')}` : '';
         const copyExcelValues = [[`Step 2 of 5: Bulk Copy Non-Processing completed for Batch ${batchName}`, toUTCStr(new Date()), sFailedCopyStatuses, JSON.stringify(copiedFiles)]];
-        await sharepoint.updateExcelTable(projectExcelPath, 'COPY_STATUS', copyExcelValues);
+        await sharepoint.updateExcelTable(projectExcelPath, 'PROMOTE_STATUS', copyExcelValues);
 
         const statusJsonPath = `graybox_promote${project}/status.json`;
         const statusEntry = {
