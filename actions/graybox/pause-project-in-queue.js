@@ -30,13 +30,17 @@ async function main(params) {
     let responseCode = 200;
     logger.info(responsePayload);
     try {
-        const { projectPath } = params;
-        logger.info(`Project to be paused :: ${projectPath}`);
-        const projectQueuePath = 'graybox_promote/project_queue.json';
+        let { projectPath, isBulkCopyProject } = params;
+        logger.info(`Project to be paused :: ${projectPath} \n Is Bulk Copy Project :: ${isBulkCopyProject}`);
+        const projectQueuePath = isBulkCopyProject ? 'graybox_promote/bulk_copy_project_queue.json' : 'graybox_promote/project_queue.json';
         if (await filesWrapper.fileExists(projectQueuePath)) {
             const projectQueue = await filesWrapper.readFileIntoObject(projectQueuePath);
             if (projectQueue) {
                 logger.info(`In Pause Project Action, Before pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
+
+                // Bulk Copy Projects in project queue are stored as just <projectPath> however Promote projects are stored as graybox_promote<projectPath>
+                // Hence we need to remove the graybox_promote prefix if it exists
+                projectPath = isBulkCopyProject ? projectPath.replace('graybox_promote', '') : projectPath;
                 const index = projectQueue.findIndex((obj) => obj.projectPath === projectPath);
                 if (index === -1) {
                     responsePayload = `No project with ${projectPath} path exists in the project queue`;
@@ -51,13 +55,31 @@ async function main(params) {
                 logger.info(`In Pause Project Action, After pausing, Project Queue Json: ${JSON.stringify(projectQueue)}`);
                 // logger.info(`In Pause Graybox Project, Before Pausing Project Status Json: ${JSON.stringify(projectStatusJson)}`);
                 const statusJsonPath = `graybox_promote/${project}/status.json`;
+                const bulkCopyStatusJsonPath = `graybox_promote${project}/bulk-copy-status.json`;
                 const statusEntry = {
                     step: 'Project paused',
                     stepName: 'paused',
                     projectPath: project,
                 };
+                
+                // Update regular status JSON for both Promote and Bulk Copy projects
+                try {
+                    await writeProjectStatus(filesWrapper, statusJsonPath, statusEntry, 'paused');
+                    logger.info(`Updated regular status JSON at ${statusJsonPath}`);
+                } catch (err) {
+                    logger.warn(`Could not update regular status JSON: ${err.message}`);
+                }
 
-                await writeProjectStatus(filesWrapper, statusJsonPath, statusEntry, 'paused');
+                    // Update bulk copy status JSON for Bulk Copy projects
+                    if (isBulkCopyProject) {
+                    try {
+                        await writeProjectStatus(filesWrapper, bulkCopyStatusJsonPath, statusEntry, 'paused');
+                        logger.info(`Updated bulk copy status JSON at ${bulkCopyStatusJsonPath}`);
+                    } catch (err) {
+                        logger.warn(`Could not update bulk copy status JSON: ${err.message}`);
+                    }
+                }
+
             } else {
                 responsePayload = `Project Queue empty. No project with ${projectPath} path exists`;
                 return {
