@@ -115,7 +115,8 @@ async function main(params) {
             newerDestinationFiles,
             workerType: 'promote',
             experienceName,
-            filesWrapper
+            filesWrapper,
+            gbRootFolder
         });
     }
 

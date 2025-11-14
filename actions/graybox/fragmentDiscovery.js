@@ -42,8 +42,7 @@ export async function discoverFragments(pageUrl, helixUtils) {
 
         // Process each fragment match
         for (const match of fragmentMatches) {
-            const cleanUrl = match.slice(1, -1);
-            
+            const cleanUrl = match.slice(1, -1)?.replace('#_dnt', ''); // Also remove the #_dnt parameter added into the Fragment Path by Loc
             if (discoveredFragments.has(cleanUrl)) {
                 continue;
             }
@@ -98,7 +97,7 @@ export async function discoverNestedFragments(content, discoveredFragments, heli
     const fragmentMatches = content.match(/<https:\/\/[^>]*aem\.page[^>]*\/fragments\/[^>]*>/g) || [];
     
     for (const match of fragmentMatches) {
-        const cleanUrl = match.slice(1, -1);
+        const cleanUrl = match.slice(1, -1)?.replace('#_dnt', ''); // Also remove the #_dnt parameter added into the Fragment Path by Loc
         
         if (discoveredFragments.has(cleanUrl)) {
             continue;

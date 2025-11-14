@@ -116,8 +116,9 @@ async function checkAndCompareFileDates({ sharepoint, filesWrapper, project, fil
  * @param {string} params.workerType Type of worker ('copy' or 'promote')
  * @param {string} params.experienceName Experience name
  * @param {Object} params.filesWrapper Files wrapper instance
+ * @param {string} params.gbRootFolder GB Root folder
  */
-async function updateExcelWithNewerFiles({ sharepoint, projectExcelPath, newerDestinationFiles, workerType, experienceName, filesWrapper }) {
+async function updateExcelWithNewerFiles({ sharepoint, projectExcelPath, newerDestinationFiles, workerType, experienceName, filesWrapper, gbRootFolder }) {
     const message = workerType === 'copy' ? 'Copying' : 'Promoting';
     if (newerDestinationFiles.length > 0) {
         try {
