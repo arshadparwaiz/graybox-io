@@ -103,7 +103,8 @@ async function main(params) {
             newerDestinationFiles,
             workerType: 'copy',
             experienceName,
-            filesWrapper
+            filesWrapper,
+            gbRootFolder
         });
     }
 
