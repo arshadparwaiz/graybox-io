@@ -20,7 +20,7 @@ notifications:
             - "grype" # Exclude SBOM tickets which duplicate findings already created by snyk
       fields:
         assignee:
-          name: armohamm
+          name: sabmukhe
         customfield_11800: MWPW-164516 # Jira epic security tickets will be assigned to.
         watchers: # Everyone who is an admin on your repository should be a watcher.
           - casalino
